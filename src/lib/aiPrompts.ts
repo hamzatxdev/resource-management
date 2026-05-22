@@ -42,14 +42,15 @@ Flag a person when ANY apply:
 Output JSON only:
 {
   "flagged": boolean,
-  "severity": "none" | "info" | "watch" | "action",
+  "severity": "none" | "ok" | "info" | "watch" | "action" | "replacement",
   "summary": string (one line),
   "reasons": string[] (2-5 bullet reasons, empty if not flagged),
   "suggestedNextSteps": string (actionable, or empty)
 }
 
-severity: none=not flagged, info=minor, watch=needs review, action=urgent staffing decision
-When flagged is false, summary MUST still be one sentence explaining the review (e.g. "Profile complete; skills align with senior full-stack role").`;
+severity: none/ok=clear or reviewed OK, info=informational, watch=needs review, action=urgent, replacement=replace on project
+Set flagged true when severity is info, watch, action, or replacement.
+When severity is none or ok, flagged should be false but summary MUST still explain the review.`;
 
 export const REASSESS_SYSTEM = `You reassess a Techverx team member after a manager escalation.
 

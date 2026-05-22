@@ -23,7 +23,14 @@ const ReassessSchema = z.object({
   flag: z
     .object({
       flagged: z.boolean(),
-      severity: z.enum(["none", "info", "watch", "action"]),
+      severity: z.enum([
+        "none",
+        "ok",
+        "info",
+        "watch",
+        "action",
+        "replacement",
+      ]),
       summary: z.string(),
       reasons: z.array(z.string()),
     })
@@ -127,13 +134,20 @@ export async function POST(req: Request) {
     }
 
     if (parsed.flag) {
-      doc.aiFlags = {
-        flagged: parsed.flag.flagged,
-        severity: parsed.flag.flagged ? parsed.flag.severity : "none",
-        summary: parsed.flag.summary,
-        reasons: parsed.flag.reasons,
-        flaggedAt: new Date().toISOString(),
-      };
+      const { aiFlagForDb } = await import("@/lib/aiFlags");
+      doc.set(
+        "aiFlags",
+        aiFlagForDb(
+          {
+            flagged: parsed.flag.flagged,
+            severity: parsed.flag.severity,
+            summary: parsed.flag.summary,
+            reasons: parsed.flag.reasons,
+          },
+          { stampReview: true }
+        )
+      );
+      doc.markModified("aiFlags");
     }
 
     const entryId = escalationId ?? randomUUID();

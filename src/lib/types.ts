@@ -20,7 +20,13 @@ export type Stack =
   | "React Native"
   | "WordPress";
 
-export type FlagSeverity = "none" | "info" | "watch" | "action";
+export type FlagSeverity =
+  | "none"
+  | "ok"
+  | "info"
+  | "watch"
+  | "action"
+  | "replacement";
 
 export interface AiFlag {
   flagged: boolean;

@@ -23,7 +23,7 @@ const AiFlagSchema = new Schema(
     flagged: { type: Boolean, default: false },
     severity: {
       type: String,
-      enum: ["none", "info", "watch", "action"],
+      enum: ["none", "ok", "info", "watch", "action", "replacement"],
       default: "none",
     },
     reasons: { type: [String], default: [] },

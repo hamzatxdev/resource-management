@@ -15,6 +15,7 @@ import { SpecBadges } from "./SpecBadges";
 import { EditSpecsModal } from "./EditSpecsModal";
 import { TagsList } from "./TagChip";
 import { Tooltip } from "./Tooltip";
+import { EditFlagModal } from "./EditFlagModal";
 import { FlagBadge } from "./FlagBadge";
 import { WorkflowEntriesModal } from "./WorkflowEntriesModal";
 import type { TeamMemberClient } from "@/lib/types";
@@ -65,13 +66,14 @@ function isFrozenCol(key: ColKey): boolean {
   return FROZEN_COLS.includes(key);
 }
 
-type FrozenRowTone = "default" | "watch" | "action";
+type FrozenRowTone = "default" | "info" | "watch" | "action" | "replacement";
 
 function frozenRowTone(member: TeamMemberClient): FrozenRowTone {
-  if (member.aiFlags?.flagged && member.aiFlags.severity === "action") {
-    return "action";
-  }
-  if (member.aiFlags?.flagged) return "watch";
+  const s = member.aiFlags?.severity;
+  if (s === "action") return "action";
+  if (s === "replacement") return "replacement";
+  if (s === "info") return "info";
+  if (s === "watch" || member.aiFlags?.flagged) return "watch";
   return "default";
 }
 
@@ -95,9 +97,13 @@ function frozenCellClasses(
   const bg =
     tone === "action"
       ? "frozen-cell frozen-cell-action"
-      : tone === "watch"
-        ? "frozen-cell frozen-cell-watch"
-        : "frozen-cell frozen-cell-default";
+      : tone === "replacement"
+        ? "frozen-cell frozen-cell-replacement"
+        : tone === "info"
+          ? "frozen-cell frozen-cell-info"
+          : tone === "watch"
+            ? "frozen-cell frozen-cell-watch"
+            : "frozen-cell frozen-cell-default";
   return `${bg} ${shadow}`;
 }
 
@@ -278,6 +284,7 @@ export function TeamTable({
     useState<TeamMemberClient | null>(null);
   const [escalationsMember, setEscalationsMember] =
     useState<TeamMemberClient | null>(null);
+  const [flagMember, setFlagMember] = useState<TeamMemberClient | null>(null);
 
   useEffect(() => {
     setWidths(loadWidths());
@@ -424,11 +431,16 @@ export function TeamTable({
                 <Fragment key={m.id}>
                   <tr
                     className={`group border-b border-border-soft hover:bg-bg-card-hover ${
-                      m.aiFlags?.flagged && m.aiFlags.severity === "action"
+                      m.aiFlags?.severity === "action"
                         ? "bg-red-50/50"
-                        : m.aiFlags?.flagged
-                          ? "bg-amber-50/40"
-                          : ""
+                        : m.aiFlags?.severity === "replacement"
+                          ? "bg-violet-50/50"
+                          : m.aiFlags?.severity === "info"
+                            ? "bg-blue-50/40"
+                            : m.aiFlags?.flagged ||
+                                m.aiFlags?.severity === "watch"
+                              ? "bg-amber-50/40"
+                              : ""
                     }`}
                   >
                     <td
@@ -464,7 +476,10 @@ export function TeamTable({
                       />
                     </td>
                     <td className={`px-2 py-1 text-center max-w-0${dim}`}>
-                      <FlagBadge flag={m.aiFlags} />
+                      <FlagBadge
+                        flag={m.aiFlags}
+                        onClick={() => setFlagMember(m)}
+                      />
                     </td>
                     <td className={`px-2 py-1 max-w-0${dim}`}>
                       <EditableCell
@@ -627,6 +642,24 @@ export function TeamTable({
           </tbody>
         </table>
       </div>
+
+      {flagMember && (
+        <EditFlagModal
+          open={flagMember != null}
+          onClose={() => setFlagMember(null)}
+          memberName={flagMember.name}
+          memberId={flagMember.id}
+          flag={flagMember.aiFlags}
+          onSave={async (aiFlags) => {
+            const updated = (await onPatch(flagMember.id, {
+              aiFlags,
+            })) as TeamMemberClient;
+            onMemberUpdate(updated);
+            setFlagMember(null);
+            onToast?.("Flag updated");
+          }}
+        />
+      )}
 
       {specsMember && (
         <EditSpecsModal

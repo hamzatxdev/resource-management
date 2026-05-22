@@ -1,4 +1,5 @@
 import type { HydratedDocument } from "mongoose";
+import { aiFlagForDb } from "./aiFlags";
 import { enrichWithEmbedding } from "./memberService";
 import { appendWorkflowEntry } from "./workflow";
 import type { TeamMemberMongoose } from "@/models/TeamMember";
@@ -6,21 +7,7 @@ import type { AiFlag } from "./types";
 
 type MemberDoc = HydratedDocument<TeamMemberMongoose>;
 
-export function aiFlagForDb(flag: AiFlag, opts?: { stampReview?: boolean }) {
-  const reviewed =
-    flag.flaggedAt != null
-      ? new Date(flag.flaggedAt)
-      : opts?.stampReview
-        ? new Date()
-        : undefined;
-  return {
-    flagged: Boolean(flag.flagged),
-    severity: flag.flagged ? flag.severity : "none",
-    summary: flag.summary ?? "",
-    reasons: Array.isArray(flag.reasons) ? flag.reasons : [],
-    flaggedAt: reviewed,
-  };
-}
+export { aiFlagForDb } from "./aiFlags";
 
 export async function applySuggestedNextSteps(
   doc: MemberDoc,

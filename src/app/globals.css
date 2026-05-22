@@ -116,3 +116,19 @@ textarea {
 .team-table tr.group:hover .frozen-cell-default {
   background-color: #f0f2f5;
 }
+
+.team-table .frozen-cell-info {
+  background-color: #eff6ff;
+}
+
+.team-table tr.group:hover .frozen-cell-info {
+  background-color: #dbeafe;
+}
+
+.team-table .frozen-cell-replacement {
+  background-color: #f5f3ff;
+}
+
+.team-table tr.group:hover .frozen-cell-replacement {
+  background-color: #ede9fe;
+}

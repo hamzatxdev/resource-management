@@ -8,7 +8,14 @@ const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini";
 
 const FlagSchema = z.object({
   flagged: z.boolean(),
-  severity: z.enum(["none", "info", "watch", "action"]),
+  severity: z.enum([
+    "none",
+    "ok",
+    "info",
+    "watch",
+    "action",
+    "replacement",
+  ]),
   summary: z.string(),
   reasons: z.array(z.string()),
   suggestedNextSteps: z.string().optional(),
@@ -16,9 +23,16 @@ const FlagSchema = z.object({
 
 export function flagFromParsed(parsed: z.infer<typeof FlagSchema>): AiFlag {
   const reviewedAt = new Date().toISOString();
+  const severity = parsed.severity;
+  const flagged =
+    parsed.flagged ||
+    severity === "info" ||
+    severity === "watch" ||
+    severity === "action" ||
+    severity === "replacement";
   return {
-    flagged: parsed.flagged,
-    severity: parsed.flagged ? parsed.severity : "none",
+    flagged,
+    severity,
     summary: parsed.summary ?? "",
     reasons: parsed.reasons ?? [],
     flaggedAt: reviewedAt,

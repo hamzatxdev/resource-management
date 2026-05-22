@@ -8,6 +8,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { AiAssessModal, type AssessScope } from "./AiAssessModal";
 import { GenerateProfileModal } from "./GenerateProfileModal";
 import { TeamTable } from "./TeamTable";
+import { hasStaffingFlag } from "@/lib/aiFlags";
 import { matchesSpecFilter } from "@/lib/specializations";
 import {
   mergeTags,
@@ -90,7 +91,7 @@ export function TeamDirectory() {
         )
       )
         return false;
-      if (flaggedOnly && !m.aiFlags?.flagged) return false;
+      if (flaggedOnly && !hasStaffingFlag(m.aiFlags)) return false;
       if (
         tagFilter.length &&
         !tagFilter.every((t) => tagMatchesFilter(m.tags, t))

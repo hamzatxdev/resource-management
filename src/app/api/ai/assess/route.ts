@@ -14,7 +14,14 @@ const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini";
 
 const FlagPartSchema = z.object({
   flagged: z.boolean(),
-  severity: z.enum(["none", "info", "watch", "action"]),
+  severity: z.enum([
+    "none",
+    "ok",
+    "info",
+    "watch",
+    "action",
+    "replacement",
+  ]),
   summary: z.string(),
   reasons: z.array(z.string()),
 });
@@ -81,9 +88,15 @@ function parseAssessment(raw: string, fields: string[]): AssessmentResult {
     const f = parsed.flag ?? parseFlagPayload(json.flags);
     if (f) {
       const reviewedAt = new Date().toISOString();
+      const severity = f.severity;
       out.flag = {
-        flagged: f.flagged,
-        severity: f.flagged ? f.severity : "none",
+        flagged:
+          f.flagged ||
+          severity === "info" ||
+          severity === "watch" ||
+          severity === "action" ||
+          severity === "replacement",
+        severity,
         summary: f.summary ?? "",
         reasons: f.reasons ?? [],
         flaggedAt: reviewedAt,
