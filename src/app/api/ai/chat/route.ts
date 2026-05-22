@@ -76,13 +76,23 @@ export async function POST(req: Request) {
 
     if (useTagFilter && tagQuery) {
       filterMode = "tags";
-      const tagMatches = filterMembersByTagQuery(plain, tagQuery);
-      memberIds = tagMatches.map((m) => m.id);
+      const tagMatches = filterMembersByTagQuery(
+        plain.map((m) => ({
+          id: m.id,
+          tags: m.tags,
+          role: m.role,
+          projects: m.projects,
+        })),
+        tagQuery
+      );
+      const matchIds = new Set(tagMatches.map((m) => m.id));
+      const tagMatchesFull = plain.filter((m) => matchIds.has(m.id));
+      memberIds = tagMatchesFull.map((m) => m.id);
       if (matcherIds.length) {
         memberIds = intersectIds(memberIds, matcherIds);
         filterMode = "hybrid";
       }
-      ranked = tagMatches.slice(0, FILTER_TOP_K).map((member) => ({
+      ranked = tagMatchesFull.slice(0, FILTER_TOP_K).map((member) => ({
         member,
         score: 1,
       }));

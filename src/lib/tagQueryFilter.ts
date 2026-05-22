@@ -54,6 +54,19 @@ const MONTH_ALIASES: Record<string, string> = {
   dec: "december",
 };
 
+const ROLE_TERMS = [
+  "developer",
+  "engineer",
+  "devops",
+  "manager",
+  "lead",
+  "qa",
+  "analyst",
+  "architect",
+  "intern",
+  "consultant",
+] as const;
+
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -87,6 +100,9 @@ const STOP_WORDS = new Set([
   "show",
   "find",
   "list",
+  "project",
+  "client",
+  ...ROLE_TERMS,
 ]);
 
 export type StaffingIntent = "bench" | "allocated";
@@ -96,6 +112,7 @@ export interface TagQueryFilter {
   staffing?: StaffingIntent;
   project?: string;
   namespace?: string;
+  roleIncludes?: string[];
 }
 
 function canonicalMonth(key: string): string | null {
@@ -132,18 +149,60 @@ function extractStaffing(message: string): StaffingIntent | undefined {
   return undefined;
 }
 
-function extractProject(message: string, periods: string[]): string | undefined {
+function extractRoleTerms(message: string): string[] {
   const lower = message.toLowerCase();
-  const m = lower.match(
+  return ROLE_TERMS.filter((term) => new RegExp(`\\b${term}\\b`, "i").test(lower));
+}
+
+function isValidProjectToken(token: string, exclude: Set<string>): boolean {
+  const t = token.toLowerCase();
+  if (!t || t.length < 2 || t.length > 24) return false;
+  if (STOP_WORDS.has(t) || MONTH_ALIASES[t] || exclude.has(t)) return false;
+  return true;
+}
+
+function extractProject(
+  message: string,
+  periods: string[],
+  roleTerms: string[]
+): string | undefined {
+  const lower = message.toLowerCase();
+  const exclude = new Set(roleTerms);
+
+  const colon = lower.match(/\b(?:project|client):([a-z][\w-]+)/i);
+  if (colon && isValidProjectToken(colon[1], exclude)) return colon[1];
+
+  const projectIs = lower.match(
+    /\bproject\s+is\s+([a-z][\w-]+)(?:\s+and\s+|\s|$)/i
+  );
+  if (projectIs && isValidProjectToken(projectIs[1], exclude)) {
+    return projectIs[1];
+  }
+
+  const onProject = lower.match(
+    /\b(?:on|at|for)\s+(?:the\s+)?(?:project\s+)?([a-z][\w-]+)\b/i
+  );
+  if (onProject && isValidProjectToken(onProject[1], exclude)) {
+    return onProject[1];
+  }
+
+  const alloc = lower.match(
+    /\b(?:allocated|allocation)\s+(?:to|on|at|for)\s+(?:project\s+)?([a-z][\w-]+)\b/i
+  );
+  if (alloc && isValidProjectToken(alloc[1], exclude)) return alloc[1];
+
+  const legacy = lower.match(
     /\b(?:allocated|allocation|on|at|to|for)\s+(?:in\s+\w+\s+)?([a-z][\w-]{1,20})\b/
   );
-  if (m && !STOP_WORDS.has(m[1]) && !MONTH_ALIASES[m[1]]) return m[1];
+  if (legacy && isValidProjectToken(legacy[1], exclude)) return legacy[1];
 
-  const tokens = lower.split(/[^a-z0-9]+/).filter(Boolean);
-  for (const t of tokens) {
-    if (STOP_WORDS.has(t) || MONTH_ALIASES[t]) continue;
-    if (t.length >= 2 && t.length <= 16 && periods.length > 0) return t;
+  if (periods.length) {
+    const tokens = lower.split(/[^a-z0-9]+/).filter(Boolean);
+    for (const t of tokens) {
+      if (isValidProjectToken(t, exclude)) return t;
+    }
   }
+
   return undefined;
 }
 
@@ -161,16 +220,26 @@ export function parseTagQuery(message: string): TagQueryFilter | null {
 
   const periods = extractPeriods(trimmed);
   const staffing = extractStaffing(trimmed);
-  const project = extractProject(trimmed, periods);
+  const roleIncludes = extractRoleTerms(trimmed);
+  const project = extractProject(trimmed, periods, roleIncludes);
   const namespace = extractNamespace(trimmed);
 
-  if (!periods.length && !staffing && !project && !namespace) return null;
+  if (
+    !periods.length &&
+    !staffing &&
+    !project &&
+    !namespace &&
+    !roleIncludes.length
+  ) {
+    return null;
+  }
 
   return {
     periods,
     staffing,
     project,
     namespace,
+    roleIncludes: roleIncludes.length ? roleIncludes : undefined,
   };
 }
 
@@ -182,7 +251,8 @@ export function isStructuredTagQuery(
     filter.periods.length ||
     filter.staffing ||
     filter.project ||
-    filter.namespace
+    filter.namespace ||
+    filter.roleIncludes?.length
   );
 }
 
@@ -195,8 +265,22 @@ function tagPeriodKey(tag: ParsedTag): string | undefined {
 
 function tagProjectKey(tag: ParsedTag): string | undefined {
   if (tag.project) return tag.project;
+  const ns = tag.namespace?.toLowerCase();
+  if ((ns === "project" || ns === "client") && tag.parts.length > 1) {
+    return tag.parts.slice(1).join(":");
+  }
+  if (ns === "client" && tag.parts[0]) return tag.parts[0];
   if (tag.type === "period-label" && tag.parts[1]) return tag.parts[1];
+  if (tag.type === "allocation" && tag.parts[1]) return tag.parts[1];
   return undefined;
+}
+
+function projectTokenMatch(want: string, got: string): boolean {
+  const w = want.toLowerCase().trim();
+  const g = got.toLowerCase().trim();
+  if (!w || !g) return false;
+  if (g === w) return true;
+  return g.split(/[\s·:_-]+/).some((part) => part === w);
 }
 
 function periodConstraintOk(tag: ParsedTag, periods: string[]): boolean {
@@ -208,9 +292,15 @@ function periodConstraintOk(tag: ParsedTag, periods: string[]): boolean {
 
 function projectConstraintOk(tag: ParsedTag, project: string): boolean {
   const tp = tagProjectKey(tag);
-  if (!tp) return false;
-  const want = project.toLowerCase();
-  return tp.toLowerCase().includes(want) || want.includes(tp.toLowerCase());
+  if (tp && projectTokenMatch(project, tp)) return true;
+  const raw = tag.raw.toLowerCase();
+  const label = tag.label.toLowerCase();
+  const needle = project.toLowerCase();
+  if (raw.includes(`:${needle}`) || raw.includes(`:${needle}:`)) return true;
+  if (label.split("·").some((p) => projectTokenMatch(project, p.trim()))) {
+    return true;
+  }
+  return false;
 }
 
 function tagMatchesStructuredFilter(
@@ -280,8 +370,74 @@ export function memberMatchesTagQuery(
   return parseTags(tags).some((tag) => tagMatchesStructuredFilter(tag, filter));
 }
 
+function memberProjectsMatch(
+  projects: string[] | undefined,
+  project: string
+): boolean {
+  const want = project.toLowerCase();
+  return (projects ?? []).some(
+    (p) =>
+      p.toLowerCase() === want ||
+      projectTokenMatch(project, p) ||
+      p.toLowerCase().includes(want)
+  );
+}
+
+function memberRoleMatch(role: string | undefined, terms: string[]): boolean {
+  const r = (role ?? "").toLowerCase();
+  return terms.some((t) => r.includes(t.toLowerCase()));
+}
+
+function memberMatchesProjectConstraint(
+  member: { tags?: string[]; projects?: string[] },
+  filter: TagQueryFilter
+): boolean {
+  if (!filter.project) return true;
+  const tagOk = memberMatchesTagQuery(member.tags ?? [], {
+    periods: filter.periods,
+    staffing: filter.staffing,
+    project: filter.project,
+    namespace: filter.namespace,
+  });
+  if (tagOk) return true;
+  return memberProjectsMatch(member.projects, filter.project);
+}
+
+export function memberMatchesQuery(
+  member: {
+    tags?: string[];
+    role?: string;
+    projects?: string[];
+  },
+  filter: TagQueryFilter
+): boolean {
+  if (filter.roleIncludes?.length) {
+    if (!memberRoleMatch(member.role, filter.roleIncludes)) return false;
+  }
+
+  const needsTagOrProject =
+    !!filter.project ||
+    !!filter.staffing ||
+    filter.periods.length > 0 ||
+    !!filter.namespace;
+
+  if (needsTagOrProject) {
+    if (filter.project) {
+      return memberMatchesProjectConstraint(member, filter);
+    }
+    return memberMatchesTagQuery(member.tags ?? [], filter);
+  }
+
+  return true;
+}
+
 export function filterMembersByTagQuery<
-  T extends { id: string; tags?: string[] },
+  T extends {
+    id: string;
+    tags?: string[];
+    role?: string;
+    projects?: string[];
+  },
 >(members: T[], filter: TagQueryFilter): T[] {
-  return members.filter((m) => memberMatchesTagQuery(m.tags ?? [], filter));
+  return members.filter((m) => memberMatchesQuery(m, filter));
 }
