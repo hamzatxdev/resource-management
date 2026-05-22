@@ -35,6 +35,17 @@ npm run seed          # loads Resources Skill Sheet.xlsx + builds AI embeddings
 npm run dev           # http://localhost:3000
 ```
 
+## Deploy on Vercel
+
+This is a **Next.js** app (not a static site). In Vercel **Project Settings → General**:
+
+1. **Framework Preset:** Next.js (repo includes `vercel.json` for this).
+2. **Build Command:** `npm run build` (default).
+3. **Output Directory:** leave **empty** — do **not** set `public`. That folder is only for static assets (favicon, etc.), not the build output.
+4. **Environment variables:** `MONGODB_URI`, `OPENAI_API_KEY` (use MongoDB Atlas for production).
+
+Redeploy after changing settings.
+
 ## API keys
 
 | Key | Required | Purpose |
