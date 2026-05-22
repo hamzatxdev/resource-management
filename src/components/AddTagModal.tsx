@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { parseTag, parseTagsInput, TAG_EXAMPLES } from "@/lib/tags";
+import {
+  mergeTags,
+  parseTag,
+  parseTagsInput,
+  tagCanonicalKey,
+  TAG_EXAMPLES,
+} from "@/lib/tags";
 import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
 
 export function AddTagModal({
@@ -23,14 +29,17 @@ export function AddTagModal({
 
   const parsed = useMemo(() => parseTagsInput(input), [input]);
   const previews = useMemo(() => parsed.map((t) => parseTag(t)), [parsed]);
-  const existingSet = useMemo(() => new Set(existingTags), [existingTags]);
+  const existingKeys = useMemo(
+    () => new Set(existingTags.map(tagCanonicalKey)),
+    [existingTags]
+  );
   const duplicates = useMemo(
-    () => parsed.filter((t) => existingSet.has(t)),
-    [parsed, existingSet]
+    () => parsed.filter((t) => existingKeys.has(tagCanonicalKey(t))),
+    [parsed, existingKeys]
   );
   const toAdd = useMemo(
-    () => parsed.filter((t) => !existingSet.has(t)),
-    [parsed, existingSet]
+    () => parsed.filter((t) => !existingKeys.has(tagCanonicalKey(t))),
+    [parsed, existingKeys]
   );
 
   useEffect(() => {
@@ -62,7 +71,7 @@ export function AddTagModal({
     setSaving(true);
     setError("");
     try {
-      await onSubmit(toAdd);
+      await onSubmit(mergeTags([], toAdd));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add tags");
@@ -116,7 +125,7 @@ export function AddTagModal({
         {previews.length > 0 && (
           <ul className="text-sm rounded border border-border bg-bg-elev divide-y divide-border max-h-40 overflow-y-auto">
             {previews.map((preview, i) => {
-              const dup = existingSet.has(parsed[i]);
+              const dup = existingKeys.has(tagCanonicalKey(parsed[i]));
               return (
                 <li key={parsed[i]} className="px-2 py-1.5">
                   <span className="text-accent font-medium">{preview.label}</span>

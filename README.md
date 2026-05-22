@@ -62,11 +62,35 @@ No other API keys needed for v1. Vector search runs in-app (cosine similarity on
 | Format | Example | Readable |
 |--------|---------|----------|
 | Allocation | `allocation:june:cis:4h` | June · CIS · 4h |
+| Team allocation | `allocated:cis:core-team` | Allocated · CIS · Core Team |
 | Month status | `may:bench`, `june:cis` | May · bench |
 | Certificate | `certificate:devops:aws-developer-associate` | Certificate · Devops · Aws Developer Associate |
 | Specialization tag | `spec:full-stack:node` | ties to specs list |
 | Any namespace | `skill-focus:react`, `client:acme` | Skill focus · React |
 | Freeform | `available` | as written |
+
+### Managing tags (per person)
+
+| Action | How |
+|--------|-----|
+| **Add** | Tags column → **+** (one or many lines; commas/newlines OK) |
+| **Remove** | **×** on the chip, or **+N** popover → **×** on each tag |
+| **Change** | Remove the old tag, then add the new one (no inline edit) |
+| **Filter table** | Click a tag pill under the search bar (matches all spelling variants) |
+
+Variants like `allocated:cis:core team` and `allocated:cis:Core-team` are stored as one canonical tag: `allocated:cis:core-team`.
+
+### Clean up old / duplicate tags (whole database)
+
+If you already saved multiple spellings of the same tag:
+
+```bash
+npm run normalize-tags
+```
+
+Then **Refresh** the app (and **Reindex** in the AI panel if you use semantic search).
+
+**Excel:** edit the **Tags** column → **Import** (upsert by employee ID) to bulk-replace tags.
 
 ## Specializations (multiple per person)
 

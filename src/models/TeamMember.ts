@@ -1,5 +1,6 @@
 import mongoose, { Schema, type InferSchemaType } from "mongoose";
 import { normalizeAiFlag } from "@/lib/aiFlags";
+import { dedupeTags } from "@/lib/tags";
 import { DEFAULT_AI_FLAG } from "@/lib/types";
 import {
   buildNextStepsLog,
@@ -90,7 +91,7 @@ export function docToPlain(doc: unknown) {
     skills: (d.skills as string[]) ?? [],
     email: (d.email as string) ?? "",
     stackLabel: (d.stackLabel as string) ?? "",
-    tags: (d.tags as string[]) ?? [],
+    tags: dedupeTags((d.tags as string[]) ?? []),
     projects: (d.projects as string[]) ?? [],
     notes: (d.notes as string) ?? "",
     specialization: (d.specialization as string) ?? "Profile Pending",

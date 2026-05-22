@@ -61,6 +61,7 @@ const MONTHS: Record<string, string> = {
 
 const NAMESPACE_LABELS: Record<string, string> = {
   allocation: "Allocation",
+  allocated: "Allocated",
   certificate: "Certificate",
   cert: "Certificate",
   spec: "Specialization",
@@ -93,6 +94,54 @@ function formatHours(h: string): string {
   return h;
 }
 
+/** Normalize one segment: lowercase, spaces → hyphens. */
+export function normalizeTagPart(part: string): string {
+  return part
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+/** Canonical stored form for colon tags; freeform trimmed as-is. */
+export function normalizeTagInput(raw: string): string {
+  const tag = raw.trim();
+  if (!tag) return "";
+  if (!tag.includes(":")) return tag;
+  return tag
+    .split(":")
+    .map((p) => normalizeTagPart(p))
+    .filter(Boolean)
+    .join(":");
+}
+
+/** Equivalence key for dedupe, filters, and search grouping. */
+export function tagCanonicalKey(raw: string): string {
+  return normalizeTagInput(raw);
+}
+
+/** Merge tag lists; later variants with same key replace earlier. */
+export function mergeTags(existing: string[], incoming: string[] = []): string[] {
+  const map = new Map<string, string>();
+  for (const t of [...existing, ...incoming]) {
+    const n = normalizeTagInput(t);
+    if (!n) continue;
+    map.set(tagCanonicalKey(n), n);
+  }
+  return [...map.values()];
+}
+
+export function dedupeTags(tags: string[]): string[] {
+  return mergeTags([], tags);
+}
+
+/** One entry per canonical tag for filter chips (sorted). */
+export function uniqueCanonicalTags(allRaw: string[]): string[] {
+  return dedupeTags(allRaw.filter(Boolean)).sort((a, b) =>
+    parseTag(a).label.localeCompare(parseTag(b).label)
+  );
+}
+
 function labelFromParts(namespace: string | undefined, parts: string[]): string {
   const nsLabel = namespace ? NAMESPACE_LABELS[namespace.toLowerCase()] ?? humanPart(namespace) : undefined;
   const rest = parts.map(humanPart).join(" · ");
@@ -113,6 +162,22 @@ export function parseTag(raw: string): ParsedTag {
       type: "freeform",
       label: humanPart(tag),
       parts: [tag],
+    };
+  }
+
+  const allocTeam = tag.match(/^allocat(?:ion|ed):([^:]+):([^:]+)$/i);
+  if (allocTeam) {
+    const project = allocTeam[1].trim().toUpperCase();
+    const team = humanPart(allocTeam[2]);
+    const ns = /^allocated:/i.test(tag) ? "allocated" : "allocation";
+    return {
+      raw: tag,
+      type: "namespaced",
+      label: `${NAMESPACE_LABELS[ns] ?? humanPart(ns)} · ${project} · ${team}`,
+      namespace: ns,
+      parts: [allocTeam[1], allocTeam[2]],
+      project: allocTeam[1],
+      status: allocTeam[2],
     };
   }
 
@@ -192,15 +257,13 @@ export function parseTags(tags: string[]): ParsedTag[] {
 
 /** Split pasted or typed tag text (comma, semicolon, or newline). */
 export function parseTagsInput(raw: string): string[] {
-  const seen = new Set<string>();
   const out: string[] = [];
   for (const part of raw.split(/[,;\n]/)) {
-    const t = part.trim();
-    if (!t || seen.has(t)) continue;
-    seen.add(t);
+    const t = normalizeTagInput(part);
+    if (!t) continue;
     out.push(t);
   }
-  return out;
+  return dedupeTags(out);
 }
 
 /** Map spec: tags to canonical specialization labels */
@@ -265,8 +328,10 @@ export function tagsReadableSummary(tags: string[]): string {
 }
 
 export function tagMatchesFilter(memberTags: string[], filter: string): boolean {
+  const filterKey = tagCanonicalKey(filter);
   const f = filter.toLowerCase();
   return memberTags.some((t) => {
+    if (tagCanonicalKey(t) === filterKey) return true;
     const p = parseTag(t);
     const blob = [t, p.label, p.namespace, ...p.parts].join(" ").toLowerCase();
     return blob.includes(f);

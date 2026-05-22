@@ -1,4 +1,4 @@
-import { parseTag, parseTags, type ParsedTag } from "./tags";
+import { normalizeTagPart, parseTag, parseTags, type ParsedTag } from "./tags";
 
 const MONTH_KEYS = [
   "january",
@@ -266,8 +266,14 @@ function tagPeriodKey(tag: ParsedTag): string | undefined {
 function tagProjectKey(tag: ParsedTag): string | undefined {
   if (tag.project) return tag.project;
   const ns = tag.namespace?.toLowerCase();
-  if ((ns === "project" || ns === "client") && tag.parts.length > 1) {
-    return tag.parts.slice(1).join(":");
+  if (
+    (ns === "project" ||
+      ns === "client" ||
+      ns === "allocated" ||
+      ns === "allocation") &&
+    tag.parts.length >= 2
+  ) {
+    return tag.parts[1];
   }
   if (ns === "client" && tag.parts[0]) return tag.parts[0];
   if (tag.type === "period-label" && tag.parts[1]) return tag.parts[1];
@@ -276,8 +282,8 @@ function tagProjectKey(tag: ParsedTag): string | undefined {
 }
 
 function projectTokenMatch(want: string, got: string): boolean {
-  const w = want.toLowerCase().trim();
-  const g = got.toLowerCase().trim();
+  const w = normalizeTagPart(want);
+  const g = normalizeTagPart(got);
   if (!w || !g) return false;
   if (g === w) return true;
   return g.split(/[\s·:_-]+/).some((part) => part === w);

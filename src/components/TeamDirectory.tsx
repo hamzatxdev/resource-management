@@ -9,7 +9,12 @@ import { AiAssessModal, type AssessScope } from "./AiAssessModal";
 import { GenerateProfileModal } from "./GenerateProfileModal";
 import { TeamTable } from "./TeamTable";
 import { matchesSpecFilter } from "@/lib/specializations";
-import { parseTag, tagMatchesFilter } from "@/lib/tags";
+import {
+  mergeTags,
+  parseTag,
+  tagMatchesFilter,
+  uniqueCanonicalTags,
+} from "@/lib/tags";
 import { parseExpNum } from "@/lib/memberService";
 import type { TeamMemberClient } from "@/lib/types";
 
@@ -68,9 +73,9 @@ export function TeamDirectory() {
   }, [load]);
 
   const allTags = useMemo(() => {
-    const set = new Set<string>();
-    members.forEach((m) => m.tags.forEach((t) => t && set.add(t)));
-    return [...set].sort();
+    const raw: string[] = [];
+    members.forEach((m) => m.tags.forEach((t) => t && raw.push(t)));
+    return uniqueCanonicalTags(raw);
   }, [members]);
 
   const filtered = useMemo(() => {
@@ -88,9 +93,7 @@ export function TeamDirectory() {
       if (flaggedOnly && !m.aiFlags?.flagged) return false;
       if (
         tagFilter.length &&
-        !tagFilter.every(
-          (t) => m.tags.includes(t) || tagMatchesFilter(m.tags, t)
-        )
+        !tagFilter.every((t) => tagMatchesFilter(m.tags, t))
       )
         return false;
       if (!q) return true;
@@ -548,7 +551,7 @@ export function TeamDirectory() {
         existingTags={tagModalMember?.tags ?? []}
         onSubmit={async (newTags) => {
           if (!tagModalMember) return;
-          const tags = [...new Set([...tagModalMember.tags, ...newTags])];
+          const tags = mergeTags(tagModalMember.tags, newTags);
           await patchMember(tagModalMember.id, { tags });
           setTagModalMember(null);
         }}

@@ -5,6 +5,7 @@ import { enrichMember, enrichWithEmbedding, parseExpNum } from "@/lib/memberServ
 import { primarySpecialization } from "@/lib/specializations";
 import { applyBulkOverrides, mergeOverrides } from "@/lib/inferRatings";
 import { aiFlagForDb } from "@/lib/persistFlag";
+import { dedupeTags } from "@/lib/tags";
 import {
   appendWorkflowEntry,
   latestWorkflowText,
@@ -131,7 +132,7 @@ export async function PATCH(req: Request, { params }: Params) {
       if (body.expNum != null) doc.expNum = body.expNum;
       if (body.email != null) doc.email = body.email;
       if (body.stackLabel != null) doc.stackLabel = body.stackLabel;
-      if (body.tags != null) doc.tags = body.tags;
+      if (body.tags != null) doc.tags = dedupeTags(body.tags as string[]);
       if (body.projects != null) doc.projects = body.projects;
       if (body.notes != null) doc.notes = body.notes;
       if (body.skills != null) doc.skills = body.skills;
