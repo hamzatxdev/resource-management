@@ -103,7 +103,7 @@ Granular labels such as **Full Stack (Node)**, **Full Stack (Python)**, **DevOps
 ## Features
 
 - **Table view** (default) — inline edit name, role, exp, stack, email
-- **Skills** — expand row, add/delete skills, click to rate 1–5 (overrides AI)
+- **Skills** — expand row; paste many skills (comma or newline); **×** to remove; click skill to rate 1–5
 - **Tags** — add per person, filter with AND logic
 - **Import** — upload `.xlsx` (upsert by Employee Code)
 - **Export** — Excel or JSON

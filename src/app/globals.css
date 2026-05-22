@@ -80,8 +80,39 @@ textarea {
 }
 
 .team-table thead th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-elev);
   box-shadow: 0 1px 0 var(--border);
+}
+
+/* Frozen columns: fully opaque so scrolled cells do not show through */
+.team-table .frozen-cell {
+  background-color: #ffffff;
+  background-clip: padding-box;
+}
+
+.team-table .frozen-cell-header {
+  background-color: #ffffff;
+}
+
+.team-table .frozen-cell-default {
+  background-color: #ffffff;
+}
+
+.team-table .frozen-cell-watch {
+  background-color: #fffbeb;
+}
+
+.team-table tr.group:hover .frozen-cell-watch {
+  background-color: #fef3c7;
+}
+
+.team-table .frozen-cell-action {
+  background-color: #fef2f2;
+}
+
+.team-table tr.group:hover .frozen-cell-action {
+  background-color: #fee2e2;
+}
+
+.team-table tr.group:hover .frozen-cell-default {
+  background-color: #f0f2f5;
 }

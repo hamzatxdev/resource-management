@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { parseSkillsInput } from "@/lib/skills";
 import { RATING_STEPS } from "@/lib/inferRatings";
 import { RatingBadge } from "./RatingBadge";
 import { Tooltip } from "./Tooltip";
@@ -15,12 +16,39 @@ export function SkillEditor({
   onUpdate: (patch: Record<string, unknown>) => Promise<unknown>;
   onRateAll?: () => void;
 }) {
-  const [newSkill, setNewSkill] = useState("");
+  const [skillInput, setSkillInput] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const parsed = useMemo(() => parseSkillsInput(skillInput), [skillInput]);
+  const existingLower = useMemo(
+    () => new Set(member.skills.map((s) => s.toLowerCase())),
+    [member.skills]
+  );
+  const toAdd = useMemo(
+    () => parsed.filter((s) => !existingLower.has(s.toLowerCase())),
+    [parsed, existingLower]
+  );
 
   const setRating = async (skill: string, value: number | null) => {
     await onUpdate({ skillRating: { skill, value } });
     setEditing(null);
+  };
+
+  const addSkills = async () => {
+    if (!toAdd.length) return;
+    setAdding(true);
+    try {
+      await onUpdate({ addSkills: toAdd });
+      setSkillInput("");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeSkill = async (skill: string) => {
+    if (editing === skill) setEditing(null);
+    await onUpdate({ removeSkill: skill });
   };
 
   return (
@@ -63,25 +91,38 @@ export function SkillEditor({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+      <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
         {member.skills.map((skill) => {
           const ai = member.aiRatings[skill];
           const rating = member.ratings[skill] ?? ai;
           const overridden = member.ratingOverrides[skill] != null;
           return (
-            <button
+            <span
               key={skill}
-              type="button"
-              onClick={() => setEditing(skill)}
-              className="inline-flex items-center gap-1 rounded border border-border bg-bg-elev px-1.5 py-0.5 font-mono text-[10px] hover:border-accent/50"
+              className="inline-flex items-center gap-0.5 rounded border border-border bg-bg-elev font-mono text-[10px]"
             >
-              <Tooltip content={skill}>
-                <span className="text-text-dim max-w-[140px] truncate inline-block">
-                  {skill}
-                </span>
-              </Tooltip>
-              <RatingBadge rating={rating} overridden={overridden} />
-            </button>
+              <button
+                type="button"
+                onClick={() => setEditing(skill)}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 hover:text-accent"
+              >
+                <Tooltip content={skill}>
+                  <span className="text-text-dim max-w-[160px] truncate inline-block text-left">
+                    {skill}
+                  </span>
+                </Tooltip>
+                <RatingBadge rating={rating} overridden={overridden} />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeSkill(skill)}
+                className="px-1 py-0.5 text-text-faint hover:text-bad shrink-0"
+                aria-label={`Remove ${skill}`}
+                title="Remove skill"
+              >
+                ×
+              </button>
+            </span>
           );
         })}
       </div>
@@ -112,7 +153,7 @@ export function SkillEditor({
             </button>
             <button
               type="button"
-              onClick={() => onUpdate({ removeSkill: editing }).then(() => setEditing(null))}
+              onClick={() => removeSkill(editing)}
               className="rounded border border-bad/50 px-2 py-0.5 text-bad"
             >
               Delete
@@ -121,30 +162,40 @@ export function SkillEditor({
         </div>
       )}
 
-      <div className="flex gap-1">
-        <input
-          value={newSkill}
-          onChange={(e) => setNewSkill(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && newSkill.trim()) {
-              onUpdate({ addSkill: newSkill.trim() }).then(() => setNewSkill(""));
-            }
-          }}
-          placeholder="Add skill…"
-          className="flex-1 rounded border border-border bg-bg-elev px-2 py-1 font-mono text-[11px] outline-none focus:border-accent"
+      <div className="space-y-1.5">
+        <textarea
+          value={skillInput}
+          onChange={(e) => setSkillInput(e.target.value)}
+          placeholder={
+            "AI, ML, RAG, Langchain, FastAPI, Django\nor one skill per line"
+          }
+          rows={3}
+          className="w-full rounded border border-border bg-bg-elev px-2 py-1.5 font-mono text-[11px] outline-none focus:border-accent resize-y min-h-[4rem]"
         />
+        {parsed.length > 0 && (
+          <p className="text-[10px] text-text-faint">
+            {toAdd.length > 0
+              ? `Will add ${toAdd.length} new skill${toAdd.length === 1 ? "" : "s"}`
+              : "All listed skills already on this profile"}
+            {parsed.length > toAdd.length &&
+              ` · skipping ${parsed.length - toAdd.length} duplicate${parsed.length - toAdd.length === 1 ? "" : "s"}`}
+          </p>
+        )}
         <button
           type="button"
-          disabled={!newSkill.trim()}
-          onClick={() =>
-            onUpdate({ addSkill: newSkill.trim() }).then(() => setNewSkill(""))
-          }
-          className="rounded border border-border px-2 py-1 text-[11px] hover:border-accent disabled:opacity-40"
+          disabled={!toAdd.length || adding}
+          onClick={addSkills}
+          className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-[11px] text-accent hover:bg-accent/20 disabled:opacity-40"
         >
-          +
+          {adding
+            ? "Adding…"
+            : toAdd.length > 1
+              ? `Add ${toAdd.length} skills`
+              : toAdd.length === 1
+                ? "Add skill"
+                : "Add skills"}
         </button>
       </div>
-
     </div>
   );
 }

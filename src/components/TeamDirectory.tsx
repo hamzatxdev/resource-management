@@ -253,6 +253,52 @@ export function TeamDirectory() {
     );
   };
 
+  const exportFiltered = async (format: "xlsx" | "json") => {
+    if (!filtered.length) {
+      showToast("No rows to export — adjust filters");
+      return;
+    }
+    const ids = filtered.map((m) => m.id);
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format, ids }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Export failed");
+      }
+      if (format === "json") {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `team-export-${ids.length}-rows.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `team-export-${ids.length}-rows.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      const scope =
+        filtered.length === members.length
+          ? "all"
+          : `${filtered.length} filtered`;
+      showToast(`Exported ${scope} row${filtered.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Export failed");
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <header className="border-b border-border bg-bg-elev/95 backdrop-blur shadow-sm sticky top-0 z-20">
@@ -286,18 +332,38 @@ export function TeamDirectory() {
                 }}
               />
             </label>
-            <a
-              href="/api/export?format=xlsx"
-              className="rounded border border-border px-3 py-1.5 hover:border-accent"
+            <button
+              type="button"
+              disabled={!filtered.length}
+              onClick={() => exportFiltered("xlsx")}
+              title={
+                filtered.length === members.length
+                  ? "Export all rows in the table"
+                  : `Export ${filtered.length} filtered row${filtered.length === 1 ? "" : "s"}`
+              }
+              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-40"
             >
               Export Excel
-            </a>
-            <a
-              href="/api/export?format=json"
-              className="rounded border border-border px-3 py-1.5 hover:border-accent"
+              {filtered.length > 0 &&
+                filtered.length < members.length &&
+                ` (${filtered.length})`}
+            </button>
+            <button
+              type="button"
+              disabled={!filtered.length}
+              onClick={() => exportFiltered("json")}
+              title={
+                filtered.length === members.length
+                  ? "Export all rows as JSON"
+                  : `Export ${filtered.length} filtered row${filtered.length === 1 ? "" : "s"} as JSON`
+              }
+              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-40"
             >
               Export JSON
-            </a>
+              {filtered.length > 0 &&
+                filtered.length < members.length &&
+                ` (${filtered.length})`}
+            </button>
             <button
               type="button"
               disabled={loading || !!assessProgress}

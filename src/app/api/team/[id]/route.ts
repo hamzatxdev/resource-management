@@ -5,6 +5,7 @@ import { enrichMember, enrichWithEmbedding, parseExpNum } from "@/lib/memberServ
 import { primarySpecialization } from "@/lib/specializations";
 import { applyBulkOverrides, mergeOverrides } from "@/lib/inferRatings";
 import { aiFlagForDb } from "@/lib/persistFlag";
+import { mergeSkills } from "@/lib/skills";
 import { dedupeTags } from "@/lib/tags";
 import {
   appendWorkflowEntry,
@@ -74,10 +75,15 @@ export async function PATCH(req: Request, { params }: Params) {
         currentOverrides,
         updates
       );
+    } else if (body.addSkills && Array.isArray(body.addSkills)) {
+      const incoming = (body.addSkills as unknown[])
+        .map((s) => String(s).trim())
+        .filter(Boolean);
+      doc.skills = mergeSkills(doc.skills, incoming);
     } else if (body.addSkill) {
       const skill = String(body.addSkill).trim();
-      if (skill && !doc.skills.includes(skill)) {
-        doc.skills = [...doc.skills, skill];
+      if (skill) {
+        doc.skills = mergeSkills(doc.skills, [skill]);
       }
     } else if (body.nextSteps != null) {
       const text = String(body.nextSteps).trim();

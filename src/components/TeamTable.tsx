@@ -1,6 +1,14 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { BulkRatingModal } from "./BulkRatingModal";
 import { SkillEditor } from "./SkillEditor";
 import { SpecBadges } from "./SpecBadges";
@@ -49,6 +57,49 @@ const COLS: { key: ColKey; label: string; min: number; default: number }[] = [
 const DEFAULT_WIDTHS = Object.fromEntries(
   COLS.map((c) => [c.key, c.default])
 ) as Record<ColKey, number>;
+
+/** Left columns that stay visible when scrolling horizontally */
+const FROZEN_COLS: ColKey[] = ["select", "id", "name"];
+
+function isFrozenCol(key: ColKey): boolean {
+  return FROZEN_COLS.includes(key);
+}
+
+type FrozenRowTone = "default" | "watch" | "action";
+
+function frozenRowTone(member: TeamMemberClient): FrozenRowTone {
+  if (member.aiFlags?.flagged && member.aiFlags.severity === "action") {
+    return "action";
+  }
+  if (member.aiFlags?.flagged) return "watch";
+  return "default";
+}
+
+/** Opaque backgrounds only — frozen cells must not use /50 or tr opacity. */
+function frozenCellClasses(
+  key: ColKey,
+  opts: {
+    header?: boolean;
+    lastFrozen?: boolean;
+    tone?: FrozenRowTone;
+  }
+): string {
+  if (!isFrozenCol(key)) return "";
+  const shadow = opts.lastFrozen
+    ? "shadow-[4px_0_6px_-2px_rgba(15,23,42,0.08)] border-r border-border-soft"
+    : "";
+  if (opts.header) {
+    return `frozen-cell frozen-cell-header bg-white ${shadow}`;
+  }
+  const tone = opts.tone ?? "default";
+  const bg =
+    tone === "action"
+      ? "frozen-cell frozen-cell-action"
+      : tone === "watch"
+        ? "frozen-cell frozen-cell-watch"
+        : "frozen-cell frozen-cell-default";
+  return `${bg} ${shadow}`;
+}
 
 function loadWidths(): Record<ColKey, number> {
   if (typeof window === "undefined") return DEFAULT_WIDTHS;
@@ -264,6 +315,24 @@ export function TeamTable({
   const resetColumns = () => persistWidths(DEFAULT_WIDTHS);
 
   const tableMinWidth = COLS.reduce((sum, c) => sum + widths[c.key], 0);
+
+  const frozenLeft = useMemo(() => {
+    const map = {} as Partial<Record<ColKey, number>>;
+    let acc = 0;
+    for (const c of COLS) {
+      if (!isFrozenCol(c.key)) continue;
+      map[c.key] = acc;
+      acc += widths[c.key];
+    }
+    return map;
+  }, [widths]);
+
+  const lastFrozenCol = FROZEN_COLS[FROZEN_COLS.length - 1];
+
+  const stickyFrozenStyle = (key: ColKey): CSSProperties | undefined => {
+    if (!isFrozenCol(key)) return undefined;
+    return { left: frozenLeft[key] ?? 0 };
+  };
   const allVisibleSelected =
     members.length > 0 && members.every((m) => selectedIds.has(m.id));
   const someVisibleSelected = members.some((m) => selectedIds.has(m.id));
@@ -278,7 +347,7 @@ export function TeamTable({
     <div className="rounded-lg border border-border bg-bg-card overflow-hidden flex flex-col flex-1 min-h-0 max-h-full shadow-card">
       <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-bg-elev/50">
         <span className="font-mono text-[10px] text-text-faint">
-          Drag column edges to resize · hover truncated cells for full text
+          ID & name stay fixed when scrolling · drag column edges to resize
         </span>
         <button
           type="button"
@@ -303,7 +372,13 @@ export function TeamTable({
               {COLS.map((col) => (
                 <th
                   key={col.key}
-                  className="sticky top-0 z-20 bg-bg-elev px-2 py-2 text-left select-none border-b border-border"
+                  style={stickyFrozenStyle(col.key)}
+                  className={`sticky top-0 px-2 py-2 text-left select-none border-b border-border ${
+                    isFrozenCol(col.key) ? "z-40" : "z-20 bg-bg-elev"
+                  } ${frozenCellClasses(col.key, {
+                    header: true,
+                    lastFrozen: col.key === lastFrozenCol,
+                  })}`}
                 >
                   {col.key === "select" ? (
                     <input
@@ -341,20 +416,25 @@ export function TeamTable({
                       : "")
                   : "No skills";
 
+              const frozenTone = frozenRowTone(m);
+              const pending = m.specialization === "Profile Pending";
+              const dim = pending ? " opacity-60" : "";
+
               return (
                 <Fragment key={m.id}>
                   <tr
-                    className={`border-b border-border-soft hover:bg-bg-card-hover ${
+                    className={`group border-b border-border-soft hover:bg-bg-card-hover ${
                       m.aiFlags?.flagged && m.aiFlags.severity === "action"
                         ? "bg-red-50/50"
                         : m.aiFlags?.flagged
                           ? "bg-amber-50/40"
                           : ""
-                    } ${
-                      m.specialization === "Profile Pending" ? "opacity-60" : ""
                     }`}
                   >
-                    <td className="px-2 py-1 text-center">
+                    <td
+                      style={stickyFrozenStyle("select")}
+                      className={`sticky z-10 px-2 py-1 text-center ${frozenCellClasses("select", { tone: frozenTone })}`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedIds.has(m.id)}
@@ -362,34 +442,43 @@ export function TeamTable({
                         className="accent-accent"
                       />
                     </td>
-                    <td className="px-2 py-1.5 font-mono text-[11px] text-text-dim max-w-0">
+                    <td
+                      style={stickyFrozenStyle("id")}
+                      className={`sticky z-10 px-2 py-1.5 font-mono text-[11px] text-text-dim max-w-0 ${frozenCellClasses("id", { tone: frozenTone })}`}
+                    >
                       <Tooltip content={m.id}>
                         <span>{m.id}</span>
                       </Tooltip>
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td
+                      style={stickyFrozenStyle("name")}
+                      className={`sticky z-10 px-2 py-1 max-w-0 ${frozenCellClasses("name", {
+                        tone: frozenTone,
+                        lastFrozen: true,
+                      })}`}
+                    >
                       <EditableCell
                         value={m.name}
                         onSave={(name) => onPatch(m.id, { name })}
                         className="font-medium text-text"
                       />
                     </td>
-                    <td className="px-2 py-1 text-center max-w-0">
+                    <td className={`px-2 py-1 text-center max-w-0${dim}`}>
                       <FlagBadge flag={m.aiFlags} />
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <EditableCell
                         value={m.role}
                         onSave={(role) => onPatch(m.id, { role })}
                       />
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <EditableCell
                         value={m.exp}
                         onSave={(exp) => onPatch(m.id, { exp })}
                       />
                     </td>
-                        <td className="px-2 py-1 max-w-0">
+                        <td className={`px-2 py-1 max-w-0${dim}`}>
                           <div className="flex h-[18px] items-center gap-1 min-w-0 flex-nowrap">
                             <SpecBadges
                               nowrap
@@ -410,7 +499,7 @@ export function TeamTable({
                             </button>
                           </div>
                         </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <EditableCell
                         value={m.stackLabel}
                         onSave={(stackLabel) =>
@@ -418,7 +507,7 @@ export function TeamTable({
                         }
                       />
                     </td>
-                        <td className="px-2 py-1 max-w-0">
+                        <td className={`px-2 py-1 max-w-0${dim}`}>
                           <div className="flex h-[18px] items-center gap-1 min-w-0 flex-nowrap">
                             {m.tags.length > 0 ? (
                               <TagsList
@@ -447,7 +536,7 @@ export function TeamTable({
                             </button>
                           </div>
                         </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <div className="flex items-center gap-1 min-w-0">
                         <Tooltip content={skillsPreview} force>
                           <button
@@ -476,13 +565,13 @@ export function TeamTable({
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <EditableCell
                         value={m.email}
                         onSave={(email) => onPatch(m.id, { email })}
                       />
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <WorkflowCellButton
                         label="Steps"
                         count={m.nextStepsLog?.length ?? 0}
@@ -490,7 +579,7 @@ export function TeamTable({
                         onClick={() => setNextStepsMember(m)}
                       />
                     </td>
-                    <td className="px-2 py-1 max-w-0">
+                    <td className={`px-2 py-1 max-w-0${dim}`}>
                       <WorkflowCellButton
                         label="Escalate"
                         count={m.escalations?.length ?? 0}
@@ -502,7 +591,7 @@ export function TeamTable({
                         onClick={() => setEscalationsMember(m)}
                       />
                     </td>
-                    <td className="px-2 py-1 text-center whitespace-nowrap">
+                    <td className={`px-2 py-1 text-center whitespace-nowrap${dim}`}>
                       <button
                         type="button"
                         onClick={() => onAssess(m)}
