@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddPersonModal } from "./AddPersonModal";
 import { AddTagModal } from "./AddTagModal";
+import { BulkEditFlagModal } from "./BulkEditFlagModal";
 import { AiPanel } from "./AiPanel";
 import { ConfirmModal } from "./ConfirmModal";
 import { AiAssessModal, type AssessScope } from "./AiAssessModal";
 import { GenerateProfileModal } from "./GenerateProfileModal";
 import { TeamTable } from "./TeamTable";
-import { hasStaffingFlag } from "@/lib/aiFlags";
+import { memberMatchesFlagFilter, normalizeSeverity } from "@/lib/aiFlags";
 import { matchesSpecFilter } from "@/lib/specializations";
 import {
   mergeTags,
@@ -40,7 +41,7 @@ export function TeamDirectory() {
   );
   const [deleting, setDeleting] = useState(false);
   const [generateProfileOpen, setGenerateProfileOpen] = useState(false);
-  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [flagFilter, setFlagFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assessOpen, setAssessOpen] = useState(false);
   const [assessScope, setAssessScope] = useState<AssessScope>("all");
@@ -53,6 +54,7 @@ export function TeamDirectory() {
     total: number;
     current?: string;
   } | null>(null);
+  const [bulkFlagOpen, setBulkFlagOpen] = useState(false);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -91,7 +93,7 @@ export function TeamDirectory() {
         )
       )
         return false;
-      if (flaggedOnly && !hasStaffingFlag(m.aiFlags)) return false;
+      if (!memberMatchesFlagFilter(m.aiFlags, flagFilter)) return false;
       if (
         tagFilter.length &&
         !tagFilter.every((t) => tagMatchesFilter(m.tags, t))
@@ -110,12 +112,39 @@ export function TeamDirectory() {
         ...m.tags,
         ...m.skills,
         m.notes ?? "",
+        m.aiFlags?.summary ?? "",
+        ...(m.aiFlags?.reasons ?? []),
+        m.aiFlags?.severity ?? "",
       ]
         .join(" ")
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [members, search, specFilter, tagFilter, flaggedOnly, aiFilterIds]);
+  }, [members, search, specFilter, tagFilter, flagFilter, aiFilterIds]);
+
+  const flagCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      staffing: 0,
+      info: 0,
+      watch: 0,
+      action: 0,
+      replacement: 0,
+      ok: 0,
+      none: 0,
+    };
+    members.forEach((m) => {
+      const f = m.aiFlags;
+      if (memberMatchesFlagFilter(f, "staffing")) counts.staffing++;
+      const s = normalizeSeverity(f?.severity);
+      if (s === "info") counts.info++;
+      else if (s === "watch") counts.watch++;
+      else if (s === "action") counts.action++;
+      else if (s === "replacement") counts.replacement++;
+      else if (s === "ok") counts.ok++;
+      else if (s === "none" && !f?.flagged) counts.none++;
+    });
+    return counts;
+  }, [members]);
 
   const specs = useMemo(() => {
     const counts = new Map<string, number>();
@@ -170,6 +199,11 @@ export function TeamDirectory() {
   };
 
   const clearSelection = () => setSelectedIds(new Set());
+
+  const selectedMembers = useMemo(
+    () => members.filter((m) => selectedIds.has(m.id)),
+    [members, selectedIds]
+  );
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -315,8 +349,12 @@ export function TeamDirectory() {
               Table-first skills database · MongoDB · AI staffing assistant
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 items-center font-mono text-xs">
-            <span className="text-text-dim">
+          <div className="flex flex-col items-end gap-1">
+            <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider w-full text-right">
+              Actions
+            </p>
+          <div className="flex flex-wrap gap-2 items-center justify-end font-mono text-xs">
+            <span className="text-text-dim" title="Rows shown after all filters">
               {filtered.length}/{members.length}
             </span>
             <label className="cursor-pointer rounded border border-border px-3 py-1.5 hover:border-accent">
@@ -390,6 +428,15 @@ export function TeamDirectory() {
             >
               Assess selected ({selectedIds.size})
             </button>
+            <button
+              type="button"
+              disabled={loading || selectedIds.size === 0}
+              onClick={() => setBulkFlagOpen(true)}
+              title="Apply the same flag severity, summary, and reasons to all selected rows"
+              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
+            >
+              Set flag ({selectedIds.size})
+            </button>
             {selectedIds.size > 0 && (
               <button
                 type="button"
@@ -421,8 +468,14 @@ export function TeamDirectory() {
               Refresh
             </button>
           </div>
+          </div>
         </div>
 
+        <div className="max-w-[1800px] mx-auto px-4 pt-1 pb-1">
+          <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider">
+            Filters
+          </p>
+        </div>
         <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-2 items-center">
           <input
             value={search}
@@ -442,14 +495,25 @@ export function TeamDirectory() {
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-1.5 font-mono text-[10px] text-text-dim cursor-pointer">
-            <input
-              type="checkbox"
-              checked={flaggedOnly}
-              onChange={(e) => setFlaggedOnly(e.target.checked)}
-            />
-            Flagged only
-          </label>
+          <select
+            value={flagFilter}
+            onChange={(e) => setFlagFilter(e.target.value)}
+            title="Filter table by staffing flag severity"
+            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm min-w-[140px]"
+          >
+            <option value="">All flags</option>
+            <option value="staffing">
+              Any staffing flag ({flagCounts.staffing})
+            </option>
+            <option value="info">Info ({flagCounts.info})</option>
+            <option value="watch">Watch ({flagCounts.watch})</option>
+            <option value="action">Action ({flagCounts.action})</option>
+            <option value="replacement">
+              Replacement ({flagCounts.replacement})
+            </option>
+            <option value="ok">OK / reviewed ({flagCounts.ok})</option>
+            <option value="none">No flag ({flagCounts.none})</option>
+          </select>
           {aiFilterIds !== null && (
             <span className="font-mono text-[10px] rounded-full border border-accent/50 bg-accent/10 text-accent px-2 py-1">
               AI: {aiFilterLabel || `${aiFilterIds.size} shown`}
@@ -458,7 +522,7 @@ export function TeamDirectory() {
           {(search ||
             specFilter ||
             tagFilter.length > 0 ||
-            flaggedOnly ||
+            flagFilter ||
             aiFilterIds !== null) && (
             <button
               type="button"
@@ -466,7 +530,7 @@ export function TeamDirectory() {
                 setSearch("");
                 setSpecFilter("");
                 setTagFilter([]);
-                setFlaggedOnly(false);
+                setFlagFilter("");
                 setAiFilterIds(null);
                 setAiFilterLabel("");
               }}
@@ -477,6 +541,13 @@ export function TeamDirectory() {
           )}
         </div>
 
+        {allTags.length > 0 && (
+          <div className="max-w-[1800px] mx-auto px-4 pb-1">
+            <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider">
+              Tag filters <span className="normal-case text-text-dim">(click to toggle, AND together)</span>
+            </p>
+          </div>
+        )}
         {allTags.length > 0 && (
           <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-1">
             {allTags.map((tag) => (
@@ -609,6 +680,31 @@ export function TeamDirectory() {
         open={addPersonOpen}
         onClose={() => setAddPersonOpen(false)}
         onSubmit={createMember}
+      />
+
+      <BulkEditFlagModal
+        open={bulkFlagOpen}
+        onClose={() => setBulkFlagOpen(false)}
+        count={selectedMembers.length}
+        previewNames={selectedMembers.map((m) => m.name || m.id).slice(0, 8)}
+        onSave={async (aiFlags) => {
+          const ids = selectedMembers.map((m) => m.id);
+          let failed = 0;
+          for (let i = 0; i < ids.length; i++) {
+            try {
+              await patchMember(ids[i], { aiFlags });
+            } catch {
+              failed++;
+            }
+          }
+          setBulkFlagOpen(false);
+          const ok = ids.length - failed;
+          if (failed) {
+            showToast(`Flag updated on ${ok}, ${failed} failed`);
+          } else {
+            showToast(`Flag updated on ${ok} ${ok === 1 ? "person" : "people"}`);
+          }
+        }}
       />
 
       <AddTagModal

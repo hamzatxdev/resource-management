@@ -32,6 +32,20 @@ export function hasStaffingFlag(flag: AiFlag | undefined): boolean {
   return ["info", "watch", "action", "replacement"].includes(flag.severity);
 }
 
+/** UI flag filter: "" = all, "staffing" = any staffing flag, or a specific severity */
+export function memberMatchesFlagFilter(
+  flag: AiFlag | undefined,
+  filter: string
+): boolean {
+  if (!filter) return true;
+  const f = flag ?? DEFAULT_AI_FLAG;
+  const severity = normalizeSeverity(f.severity);
+  if (filter === "staffing") return hasStaffingFlag(f);
+  if (filter === "none") return severity === "none" && !f.flagged;
+  if (filter === "ok") return severity === "ok";
+  return severity === filter;
+}
+
 export function normalizeAiFlag(raw: unknown): AiFlag {
   const f = raw as Record<string, unknown> | undefined;
   if (!f) return { ...DEFAULT_AI_FLAG };

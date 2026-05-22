@@ -94,7 +94,7 @@ export function AiPanel({
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between px-3 py-2 border-b border-border font-mono text-[11px] text-accent uppercase tracking-wider"
       >
-        {open ? "AI Assistant" : "AI"}
+        {open ? "AI table filter" : "AI"}
         <span>{open ? "−" : "+"}</span>
       </button>
 
