@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f7f9;
+  --bg-elev: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f2f5;
+  --border: #dde1e6;
+  --border-soft: #e8ebef;
+  --text: #1a1d21;
+  --text-dim: #5c6370;
+  --text-faint: #8b939e;
+  --accent: #c45c00;
+  --accent-dim: #9a4800;
+  --accent-glow: rgba(196, 92, 0, 0.08);
+  --good: #15803d;
+  --warn: #b45309;
+  --bad: #c0392b;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 80% 50% at 20% -10%,
+      var(--accent-glow),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 90% 10%,
+      rgba(37, 99, 235, 0.04),
+      transparent
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  color: var(--text);
+}
+
+.rating-5 {
+  color: var(--accent);
+  font-weight: 700;
+}
+.rating-4 {
+  color: var(--warn);
+}
+.rating-3 {
+  color: var(--text-dim);
+}
+.rating-2 {
+  color: var(--text-faint);
+}
+.rating-1 {
+  color: var(--bad);
+}
+
+.team-table td.max-w-0,
+.team-table th {
+  overflow: hidden;
+}
+
+.team-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elev);
+  box-shadow: 0 1px 0 var(--border);
+}

@@ -1,0 +1,599 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AddPersonModal } from "./AddPersonModal";
+import { AddTagModal } from "./AddTagModal";
+import { AiPanel } from "./AiPanel";
+import { ConfirmModal } from "./ConfirmModal";
+import { AiAssessModal, type AssessScope } from "./AiAssessModal";
+import { GenerateProfileModal } from "./GenerateProfileModal";
+import { TeamTable } from "./TeamTable";
+import { matchesSpecFilter } from "@/lib/specializations";
+import { parseTag, tagMatchesFilter } from "@/lib/tags";
+import { parseExpNum } from "@/lib/memberService";
+import type { TeamMemberClient } from "@/lib/types";
+
+export function TeamDirectory() {
+  const [members, setMembers] = useState<TeamMemberClient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [specFilter, setSpecFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [aiFilterIds, setAiFilterIds] = useState<Set<string> | null>(null);
+  const [aiFilterLabel, setAiFilterLabel] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState("");
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [tagModalMember, setTagModalMember] = useState<TeamMemberClient | null>(
+    null
+  );
+  const [deleteTarget, setDeleteTarget] = useState<TeamMemberClient | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState(false);
+  const [generateProfileOpen, setGenerateProfileOpen] = useState(false);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [assessOpen, setAssessOpen] = useState(false);
+  const [assessScope, setAssessScope] = useState<AssessScope>("all");
+  const [assessTargets, setAssessTargets] = useState<TeamMemberClient[]>([]);
+  const [assessSingle, setAssessSingle] = useState<TeamMemberClient | null>(
+    null
+  );
+  const [assessProgress, setAssessProgress] = useState<{
+    done: number;
+    total: number;
+    current?: string;
+  } | null>(null);
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/team");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Load failed");
+      setMembers(data.members);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    members.forEach((m) => m.tags.forEach((t) => t && set.add(t)));
+    return [...set].sort();
+  }, [members]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return members.filter((m) => {
+      if (aiFilterIds !== null && !aiFilterIds.has(m.id)) return false;
+      if (
+        specFilter &&
+        !matchesSpecFilter(
+          m.specializations?.length ? m.specializations : [m.specialization],
+          specFilter
+        )
+      )
+        return false;
+      if (flaggedOnly && !m.aiFlags?.flagged) return false;
+      if (
+        tagFilter.length &&
+        !tagFilter.every(
+          (t) => m.tags.includes(t) || tagMatchesFilter(m.tags, t)
+        )
+      )
+        return false;
+      if (!q) return true;
+      const blob = [
+        m.id,
+        m.name,
+        m.role,
+        m.email,
+        m.specialization,
+        ...(m.specializations ?? []),
+        m.stackLabel,
+        ...m.stacks,
+        ...m.tags,
+        ...m.skills,
+        m.notes ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [members, search, specFilter, tagFilter, flaggedOnly, aiFilterIds]);
+
+  const specs = useMemo(() => {
+    const counts = new Map<string, number>();
+    members.forEach((m) => {
+      const list = m.specializations?.length
+        ? m.specializations
+        : [m.specialization];
+      list.forEach((s) => counts.set(s, (counts.get(s) ?? 0) + 1));
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [members]);
+
+  const patchMember = async (id: string, patch: Record<string, unknown>) => {
+    const res = await fetch(`/api/team/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Update failed");
+    setMembers((prev) =>
+      prev.map((m) => (m.id === id ? data.member : m))
+    );
+    return data.member as TeamMemberClient;
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
+
+  const resolveAssessTargets = (
+    scope: AssessScope,
+    single?: TeamMemberClient
+  ): TeamMemberClient[] => {
+    if (scope === "single" && single) return [single];
+    if (scope === "all") return [...members];
+    if (scope === "filtered") return [...filtered];
+    return members.filter((m) => selectedIds.has(m.id));
+  };
+
+  const openAssess = (scope: AssessScope, single?: TeamMemberClient) => {
+    const targets = resolveAssessTargets(scope, single);
+    if (scope === "selected" && targets.length === 0) {
+      showToast("Select at least one person in the table first");
+      return;
+    }
+    setAssessScope(scope);
+    setAssessSingle(single ?? null);
+    setAssessTargets(targets);
+    setAssessOpen(true);
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Import failed");
+      showToast(`Import: ${data.created} new, ${data.updated} updated`);
+      await load();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Import error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const createMember = async (data: {
+    id: string;
+    name: string;
+    role: string;
+    exp: string;
+    email: string;
+  }) => {
+    const res = await fetch("/api/team", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: data.id,
+        name: data.name,
+        role: data.role,
+        exp: data.exp,
+        expNum: parseExpNum(data.exp),
+        skills: [],
+        email: data.email,
+        tags: [],
+        projects: [],
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Create failed");
+    setMembers((prev) => [...prev, json.member]);
+    setExpandedId(data.id);
+    showToast(`Added ${data.id}`);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/team/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Delete failed");
+      }
+      setMembers((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      if (expandedId === deleteTarget.id) setExpandedId(null);
+      showToast(`Removed ${deleteTarget.name || deleteTarget.id}`);
+      setDeleteTarget(null);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Delete error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleTag = (tag: string) => {
+    setTagFilter((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+      <header className="border-b border-border bg-bg-elev/95 backdrop-blur shadow-sm sticky top-0 z-20">
+        <div className="max-w-[1800px] mx-auto px-4 py-4 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[10px] text-text-faint tracking-widest uppercase mb-1">
+              Techverx · Internal
+            </p>
+            <h1 className="font-display text-3xl md:text-4xl">
+              Team <em className="text-accent not-italic">Directory</em>
+            </h1>
+            <p className="text-text-dim text-sm mt-1 max-w-xl">
+              Table-first skills database · MongoDB · AI staffing assistant
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center font-mono text-xs">
+            <span className="text-text-dim">
+              {filtered.length}/{members.length}
+            </span>
+            <label className="cursor-pointer rounded border border-border px-3 py-1.5 hover:border-accent">
+              {importing ? "Importing…" : "Import Excel"}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                disabled={importing}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImport(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <a
+              href="/api/export?format=xlsx"
+              className="rounded border border-border px-3 py-1.5 hover:border-accent"
+            >
+              Export Excel
+            </a>
+            <a
+              href="/api/export?format=json"
+              className="rounded border border-border px-3 py-1.5 hover:border-accent"
+            >
+              Export JSON
+            </a>
+            <button
+              type="button"
+              disabled={loading || !!assessProgress}
+              onClick={() => openAssess("all")}
+              className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-accent hover:bg-accent/20 disabled:opacity-50"
+            >
+              AI Assess all
+            </button>
+            <button
+              type="button"
+              disabled={loading || !!assessProgress || filtered.length === members.length}
+              onClick={() => openAssess("filtered")}
+              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
+              title="Assess everyone matching current filters"
+            >
+              Assess filtered
+            </button>
+            <button
+              type="button"
+              disabled={loading || !!assessProgress || selectedIds.size === 0}
+              onClick={() => openAssess("selected")}
+              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
+            >
+              Assess selected ({selectedIds.size})
+            </button>
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="rounded border border-border px-3 py-1.5 text-text-dim hover:border-accent text-xs"
+              >
+                Clear selection ({selectedIds.size})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setGenerateProfileOpen(true)}
+              className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-accent"
+            >
+              AI Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddPersonOpen(true)}
+              className="rounded border border-border px-3 py-1.5 hover:border-accent"
+            >
+              + Person
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="rounded border border-border px-3 py-1.5"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-2 items-center">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, role, skills, tags, allocations…"
+            className="flex-1 min-w-[200px] rounded border border-border bg-bg-elev px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+          />
+          <select
+            value={specFilter}
+            onChange={(e) => setSpecFilter(e.target.value)}
+            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm"
+          >
+            <option value="">All specializations</option>
+            {specs.map(([s, n]) => (
+              <option key={s} value={s}>
+                {s} ({n})
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1.5 font-mono text-[10px] text-text-dim cursor-pointer">
+            <input
+              type="checkbox"
+              checked={flaggedOnly}
+              onChange={(e) => setFlaggedOnly(e.target.checked)}
+            />
+            Flagged only
+          </label>
+          {aiFilterIds !== null && (
+            <span className="font-mono text-[10px] rounded-full border border-accent/50 bg-accent/10 text-accent px-2 py-1">
+              AI: {aiFilterLabel || `${aiFilterIds.size} shown`}
+            </span>
+          )}
+          {(search ||
+            specFilter ||
+            tagFilter.length > 0 ||
+            flaggedOnly ||
+            aiFilterIds !== null) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setSpecFilter("");
+                setTagFilter([]);
+                setFlaggedOnly(false);
+                setAiFilterIds(null);
+                setAiFilterLabel("");
+              }}
+              className="text-text-dim text-xs hover:text-accent"
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
+
+        {allTags.length > 0 && (
+          <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-1">
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`font-mono text-[10px] rounded-full px-2 py-0.5 border ${
+                  tagFilter.includes(tag)
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-border text-text-dim"
+                }`}
+              >
+                {parseTag(tag).label}
+              </button>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {(toast || assessProgress) && (
+        <div className="fixed bottom-4 right-4 z-50 rounded border border-border bg-bg-card px-4 py-2 text-sm shadow-card-lg text-text max-w-sm">
+          {assessProgress && (
+            <p className="font-mono text-xs text-text-dim mb-1">
+              AI assessing {assessProgress.done}/{assessProgress.total}
+              {assessProgress.current ? ` · ${assessProgress.current}` : ""}
+            </p>
+          )}
+          {toast && <p>{toast}</p>}
+        </div>
+      )}
+
+      <div className="flex-1 flex min-h-0 max-w-[1800px] mx-auto w-full px-4 py-4 gap-4">
+        <main className="flex-1 min-w-0 min-h-0 flex flex-col">
+          {error && (
+            <div className="rounded border border-bad/40 bg-red-50 p-4 mb-4 text-sm">
+              <p className="text-bad font-medium">{error}</p>
+              <p className="text-text-dim mt-2 text-xs">
+                Ensure MongoDB is running at your MONGODB_URI. Start with:{" "}
+                <code className="text-accent">brew services start mongodb-community</code>{" "}
+                or use MongoDB Atlas.
+              </p>
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-text-dim font-mono text-sm">Loading team…</p>
+          ) : filtered.length === 0 ? (
+            <p className="p-8 text-center text-text-dim text-sm rounded-lg border border-border">
+              {aiFilterIds !== null
+                ? "No one matches your AI search. Try a broader question, clear the AI filter, or run Reindex in the AI panel."
+                : (
+                  <>
+                    No members match filters. Import Excel or run{" "}
+                    <code className="text-accent">npm run seed</code>.
+                  </>
+                )}
+            </p>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col">
+            <TeamTable
+              members={filtered}
+              expandedId={expandedId}
+              onExpand={setExpandedId}
+              onPatch={patchMember}
+              onDelete={setDeleteTarget}
+              onAddTag={setTagModalMember}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onSelectAllVisible={(checked) => {
+                if (checked) {
+                  setSelectedIds(new Set(filtered.map((m) => m.id)));
+                } else {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    filtered.forEach((m) => next.delete(m.id));
+                    return next;
+                  });
+                }
+              }}
+              onAssess={(m) => openAssess("single", m)}
+              onMemberUpdate={(member) =>
+                setMembers((prev) =>
+                  prev.map((m) => (m.id === member.id ? member : m))
+                )
+              }
+              onToast={showToast}
+            />
+            </div>
+          )}
+        </main>
+
+        <AiPanel
+          activeFilterCount={aiFilterIds?.size ?? 0}
+          aiFilterActive={aiFilterIds !== null}
+          onApplyFilter={(ids, summary) => {
+            setAiFilterIds(new Set(ids));
+            setAiFilterLabel(summary);
+            if (ids.length) {
+              setToast(summary);
+              setTimeout(() => setToast(""), 4000);
+            }
+          }}
+          onClearFilter={() => {
+            setAiFilterIds(null);
+            setAiFilterLabel("");
+          }}
+        />
+      </div>
+
+      <GenerateProfileModal
+        open={generateProfileOpen}
+        onClose={() => setGenerateProfileOpen(false)}
+        onSaved={(member) => {
+          setMembers((prev) => {
+            const i = prev.findIndex((m) => m.id === member.id);
+            if (i >= 0) {
+              const next = [...prev];
+              next[i] = member;
+              return next;
+            }
+            return [...prev, member];
+          });
+          setExpandedId(member.id);
+          showToast(`Profile saved for ${member.id}`);
+        }}
+      />
+
+      <AddPersonModal
+        open={addPersonOpen}
+        onClose={() => setAddPersonOpen(false)}
+        onSubmit={createMember}
+      />
+
+      <AddTagModal
+        open={tagModalMember != null}
+        onClose={() => setTagModalMember(null)}
+        memberName={tagModalMember?.name ?? ""}
+        existingTags={tagModalMember?.tags ?? []}
+        onSubmit={async (newTags) => {
+          if (!tagModalMember) return;
+          const tags = [...new Set([...tagModalMember.tags, ...newTags])];
+          await patchMember(tagModalMember.id, { tags });
+          setTagModalMember(null);
+        }}
+      />
+
+      <AiAssessModal
+        open={assessOpen}
+        onClose={() => setAssessOpen(false)}
+        scope={assessScope}
+        members={assessTargets}
+        singleMember={assessSingle}
+        onProgress={(done, total, current) =>
+          setAssessProgress({ done, total, current })
+        }
+        onMemberAssessed={(member) =>
+          setMembers((prev) =>
+            prev.map((m) => (m.id === member.id ? member : m))
+          )
+        }
+        onComplete={async ({ ok, skipped, failed }) => {
+          setAssessOpen(false);
+          setAssessProgress(null);
+          const parts = [`Assessed ${ok}`];
+          if (skipped) parts.push(`${skipped} skipped`);
+          if (failed) parts.push(`${failed} failed`);
+          showToast(parts.join(", "));
+          if (assessScope === "all") {
+            await load({ silent: true });
+          }
+        }}
+      />
+
+      <ConfirmModal
+        open={deleteTarget != null}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Delete team member"
+        description={
+          deleteTarget
+            ? `Remove ${deleteTarget.name || deleteTarget.id} (${deleteTarget.id}) from the database? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        loading={deleting}
+      />
+    </div>
+  );
+}
