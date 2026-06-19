@@ -25,6 +25,8 @@ AUTH_SECRET=...   # openssl rand -hex 32
 - **Log out** is in the header **Actions** row.
 - Without both variables the app shows a configuration message and blocks access.
 
+**Screen lock:** When you switch tabs or leave the browser window, the app blurs and asks for a PIN to continue. Uses `AUTH_LOCK_PIN` if set, otherwise your login password.
+
 On Vercel, add `AUTH_PASSWORD` and `AUTH_SECRET` to project environment variables and redeploy.
 
 Optional:

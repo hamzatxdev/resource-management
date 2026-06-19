@@ -28,6 +28,13 @@ export function getAuthPassword(): string {
   return password;
 }
 
+/** PIN for screen lock when tab loses focus. Falls back to AUTH_PASSWORD. */
+export function getLockPin(): string {
+  const pin = process.env.AUTH_LOCK_PIN?.trim();
+  if (pin) return pin;
+  return getAuthPassword();
+}
+
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);

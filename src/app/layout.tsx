@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { ScreenLockProvider } from "@/components/ScreenLock";
 import "./globals.css";
 
 const display = Instrument_Serif({
@@ -28,7 +29,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
-      <body className="font-sans antialiased relative z-[1] text-text bg-bg">{children}</body>
+      <body className="font-sans antialiased relative z-[1] text-text bg-bg">
+        <ScreenLockProvider>{children}</ScreenLockProvider>
+      </body>
     </html>
   );
 }
