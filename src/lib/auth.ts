@@ -37,11 +37,12 @@ function toBase64Url(bytes: Uint8Array): string {
     .replace(/=+$/g, "");
 }
 
-function fromBase64Url(value: string): Uint8Array {
+function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const b64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
   const binary = atob(b64 + pad);
-  const out = new Uint8Array(binary.length);
+  const buf = new ArrayBuffer(binary.length);
+  const out = new Uint8Array(buf);
   for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
   return out;
 }
