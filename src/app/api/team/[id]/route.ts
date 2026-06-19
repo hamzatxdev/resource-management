@@ -5,6 +5,7 @@ import { enrichMember, enrichWithEmbedding, parseExpNum } from "@/lib/memberServ
 import { primarySpecialization } from "@/lib/specializations";
 import { applyBulkOverrides, mergeOverrides } from "@/lib/inferRatings";
 import { aiFlagForDb } from "@/lib/persistFlag";
+import { probationForDb } from "@/lib/probation";
 import { mergeSkills } from "@/lib/skills";
 import { dedupeTags } from "@/lib/tags";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/lib/workflow";
 import { docToPlain, TeamMemberModel } from "@/models/TeamMember";
 import { toClientMember } from "@/lib/matcher";
+import type { ProbationFlag } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -106,9 +108,20 @@ export async function PATCH(req: Request, { params }: Params) {
         normalizeWorkflowEntries(doc.nextStepsLog)
       );
       doc.markModified("nextStepsLog");
-    } else if (body.aiFlags != null) {
-      doc.set("aiFlags", aiFlagForDb(body.aiFlags));
-      doc.markModified("aiFlags");
+    } else if (body.aiFlags != null || body.probation != null) {
+      if (body.aiFlags != null) {
+        doc.set("aiFlags", aiFlagForDb(body.aiFlags));
+        doc.markModified("aiFlags");
+      }
+      if (body.probation != null) {
+        const incoming = body.probation as ProbationFlag;
+        const wasActive = Boolean(doc.probation?.active);
+        const next = probationForDb(incoming, {
+          stampSince: incoming.active && !wasActive,
+        });
+        doc.set("probation", next);
+        doc.markModified("probation");
+      }
     } else if (body.addEscalation) {
       const text = String(body.addEscalation.text ?? body.addEscalation).trim();
       if (text) {
@@ -147,6 +160,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const onlyWorkflow =
       body.nextSteps != null ||
       body.aiFlags != null ||
+      body.probation != null ||
       body.addEscalation != null ||
       body.removeEscalation != null ||
       body.addNextStep != null ||

@@ -1,4 +1,5 @@
 import { normalizeAiFlag } from "./aiFlags";
+import { normalizeProbation } from "./probation";
 import { effectiveRatings } from "./inferRatings";
 import type { TeamMemberClient } from "./types";
 
@@ -137,6 +138,7 @@ export function toClientMember(doc: {
   aiRatings: Record<string, number>;
   ratingOverrides: Record<string, number>;
   aiFlags?: import("./types").AiFlag;
+  probation?: import("./types").ProbationFlag;
   nextSteps?: string;
   nextStepsLog?: import("./types").WorkflowEntry[];
   escalations?: import("./types").WorkflowEntry[];
@@ -165,6 +167,7 @@ export function toClientMember(doc: {
     ratingOverrides: doc.ratingOverrides,
     ratings,
     aiFlags: normalizeAiFlag(doc.aiFlags),
+    probation: normalizeProbation(doc.probation),
     nextSteps: doc.nextSteps ?? "",
     nextStepsLog: doc.nextStepsLog ?? [],
     escalations: doc.escalations ?? [],

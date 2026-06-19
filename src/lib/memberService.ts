@@ -6,7 +6,7 @@ import {
 } from "./specializations";
 import { buildEmbeddingText, embedText } from "./embeddings";
 import { inferSkillRatings } from "./inferRatings";
-import { DEFAULT_AI_FLAG, type TeamMemberDoc, type TeamMemberInput } from "./types";
+import { DEFAULT_AI_FLAG, DEFAULT_PROBATION, type TeamMemberDoc, type TeamMemberInput } from "./types";
 
 export type EnrichedMemberFields = Omit<
   TeamMemberDoc,
@@ -46,6 +46,7 @@ export function enrichMember(input: TeamMemberInput): EnrichedMemberFields {
     aiRatings,
     ratingOverrides: {},
     aiFlags: { ...DEFAULT_AI_FLAG },
+    probation: { ...DEFAULT_PROBATION },
     nextSteps: input.nextSteps ?? "",
     nextStepsLog: [],
     escalations: [],

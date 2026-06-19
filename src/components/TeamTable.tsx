@@ -17,16 +17,18 @@ import { TagsList } from "./TagChip";
 import { Tooltip } from "./Tooltip";
 import { EditFlagModal } from "./EditFlagModal";
 import { FlagBadge } from "./FlagBadge";
+import { ProbationBadge } from "./ProbationBadge";
 import { WorkflowEntriesModal } from "./WorkflowEntriesModal";
 import type { TeamMemberClient } from "@/lib/types";
 
-const STORAGE_KEY = "techverx-table-columns-v3";
+const STORAGE_KEY = "techverx-table-columns-v4";
 
 type ColKey =
   | "select"
   | "id"
   | "name"
   | "flag"
+  | "probation"
   | "role"
   | "exp"
   | "spec"
@@ -43,6 +45,7 @@ const COLS: { key: ColKey; label: string; min: number; default: number }[] = [
   { key: "id", label: "ID", min: 72, default: 96 },
   { key: "name", label: "Name", min: 100, default: 130 },
   { key: "flag", label: "Flag", min: 52, default: 64 },
+  { key: "probation", label: "Probation", min: 56, default: 72 },
   { key: "role", label: "Role", min: 120, default: 160 },
   { key: "exp", label: "Exp", min: 48, default: 56 },
   { key: "spec", label: "Spec", min: 100, default: 120 },
@@ -354,7 +357,7 @@ export function TeamTable({
     <div className="rounded-lg border border-border bg-bg-card overflow-hidden flex flex-col flex-1 min-h-0 max-h-full shadow-card">
       <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-bg-elev/50">
         <span className="font-mono text-[10px] text-text-faint">
-          ID & name stay fixed when scrolling · drag column edges to resize
+          ID & name stay fixed when scrolling · Flag & Probation columns after Name · drag edges to resize
         </span>
         <button
           type="button"
@@ -478,6 +481,12 @@ export function TeamTable({
                     <td className={`px-2 py-1 text-center max-w-0${dim}`}>
                       <FlagBadge
                         flag={m.aiFlags}
+                        onClick={() => setFlagMember(m)}
+                      />
+                    </td>
+                    <td className={`px-2 py-1 text-center max-w-0${dim}`}>
+                      <ProbationBadge
+                        probation={m.probation ?? { active: false, summary: "", reasons: [] }}
                         onClick={() => setFlagMember(m)}
                       />
                     </td>
@@ -650,13 +659,21 @@ export function TeamTable({
           memberName={flagMember.name}
           memberId={flagMember.id}
           flag={flagMember.aiFlags}
-          onSave={async (aiFlags) => {
+          probation={
+            flagMember.probation ?? {
+              active: false,
+              summary: "",
+              reasons: [],
+            }
+          }
+          onSave={async ({ aiFlags, probation }) => {
             const updated = (await onPatch(flagMember.id, {
               aiFlags,
+              probation,
             })) as TeamMemberClient;
             onMemberUpdate(updated);
             setFlagMember(null);
-            onToast?.("Flag updated");
+            onToast?.("Flags updated");
           }}
         />
       )}

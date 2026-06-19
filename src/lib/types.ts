@@ -36,6 +36,14 @@ export interface AiFlag {
   flaggedAt?: string;
 }
 
+/** HR / performance probation — separate from staffing aiFlags */
+export interface ProbationFlag {
+  active: boolean;
+  summary: string;
+  reasons: string[];
+  since?: string;
+}
+
 export interface WorkflowEntry {
   id: string;
   text: string;
@@ -75,6 +83,7 @@ export interface TeamMemberDoc extends TeamMemberInput {
   aiRatings: Record<string, number>;
   ratingOverrides: Record<string, number>;
   aiFlags: AiFlag;
+  probation: ProbationFlag;
   /** Latest next step (denormalized from log) */
   nextSteps: string;
   nextStepsLog: WorkflowEntry[];
@@ -95,4 +104,10 @@ export const DEFAULT_AI_FLAG: AiFlag = {
   severity: "none",
   reasons: [],
   summary: "",
+};
+
+export const DEFAULT_PROBATION: ProbationFlag = {
+  active: false,
+  summary: "",
+  reasons: [],
 };

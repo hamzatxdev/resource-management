@@ -55,7 +55,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto"
       role="presentation"
       onClick={onClose}
     >
@@ -65,22 +65,24 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative w-full ${width} rounded-lg border border-border bg-bg-card shadow-card-lg`}
+        className={`relative w-full ${width} max-h-[90vh] flex flex-col rounded-lg border border-border bg-bg-card shadow-card-lg`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-border px-4 py-3">
+        <div className="shrink-0 border-b border-border px-4 py-3">
           <h2 id={titleId} className="font-display text-xl text-text">
             {title}
           </h2>
           {description && (
-            <p className="text-text-dim text-sm mt-1">{description}</p>
+            <p className="text-text-dim text-sm mt-1 line-clamp-2">{description}</p>
           )}
         </div>
 
-        {children && <div className="px-4 py-4">{children}</div>}
+        {children && (
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">{children}</div>
+        )}
 
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <div className="shrink-0 flex justify-end gap-2 border-t border-border px-4 py-3">
             {footer}
           </div>
         )}

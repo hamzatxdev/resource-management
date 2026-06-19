@@ -9,7 +9,12 @@ import { ConfirmModal } from "./ConfirmModal";
 import { AiAssessModal, type AssessScope } from "./AiAssessModal";
 import { GenerateProfileModal } from "./GenerateProfileModal";
 import { TeamTable } from "./TeamTable";
-import { memberMatchesFlagFilter, normalizeSeverity } from "@/lib/aiFlags";
+import {
+  memberMatchesProbationFilter,
+  memberMatchesProfileFilter,
+} from "@/lib/profileFilters";
+import { normalizeSeverity, memberMatchesFlagFilter } from "@/lib/aiFlags";
+import { hasActiveProbation } from "@/lib/probation";
 import { matchesSpecFilter } from "@/lib/specializations";
 import {
   mergeTags,
@@ -42,6 +47,7 @@ export function TeamDirectory() {
   const [deleting, setDeleting] = useState(false);
   const [generateProfileOpen, setGenerateProfileOpen] = useState(false);
   const [flagFilter, setFlagFilter] = useState("");
+  const [probationFilter, setProbationFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assessOpen, setAssessOpen] = useState(false);
   const [assessScope, setAssessScope] = useState<AssessScope>("all");
@@ -93,7 +99,10 @@ export function TeamDirectory() {
         )
       )
         return false;
-      if (!memberMatchesFlagFilter(m.aiFlags, flagFilter)) return false;
+      if (!memberMatchesProfileFilter(m.aiFlags, flagFilter))
+        return false;
+      if (!memberMatchesProbationFilter(m.probation, probationFilter))
+        return false;
       if (
         tagFilter.length &&
         !tagFilter.every((t) => tagMatchesFilter(m.tags, t))
@@ -115,16 +124,20 @@ export function TeamDirectory() {
         m.aiFlags?.summary ?? "",
         ...(m.aiFlags?.reasons ?? []),
         m.aiFlags?.severity ?? "",
+        m.probation?.summary ?? "",
+        ...(m.probation?.reasons ?? []),
+        m.probation?.active ? "probation" : "",
       ]
         .join(" ")
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [members, search, specFilter, tagFilter, flagFilter, aiFilterIds]);
+  }, [members, search, specFilter, tagFilter, flagFilter, probationFilter, aiFilterIds]);
 
   const flagCounts = useMemo(() => {
     const counts: Record<string, number> = {
       staffing: 0,
+      probation: 0,
       info: 0,
       watch: 0,
       action: 0,
@@ -135,6 +148,7 @@ export function TeamDirectory() {
     members.forEach((m) => {
       const f = m.aiFlags;
       if (memberMatchesFlagFilter(f, "staffing")) counts.staffing++;
+      if (hasActiveProbation(m.probation)) counts.probation++;
       const s = normalizeSeverity(f?.severity);
       if (s === "info") counts.info++;
       else if (s === "watch") counts.watch++;
@@ -507,13 +521,17 @@ export function TeamDirectory() {
               </option>
             ))}
           </select>
+          <label className="flex flex-col gap-0.5 shrink-0">
+            <span className="font-mono text-[9px] uppercase tracking-wider text-text-faint px-0.5">
+              Staffing flag
+            </span>
           <select
             value={flagFilter}
             onChange={(e) => setFlagFilter(e.target.value)}
-            title="Filter table by staffing flag severity"
-            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm min-w-[140px]"
+            title="Filter by staffing flag (Info, Watch, Action, etc.)"
+            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm min-w-[148px]"
           >
-            <option value="">All flags</option>
+            <option value="">All</option>
             <option value="staffing">
               Any staffing flag ({flagCounts.staffing})
             </option>
@@ -524,8 +542,28 @@ export function TeamDirectory() {
               Replacement ({flagCounts.replacement})
             </option>
             <option value="ok">OK / reviewed ({flagCounts.ok})</option>
-            <option value="none">No flag ({flagCounts.none})</option>
+            <option value="none">No staffing flag ({flagCounts.none})</option>
           </select>
+          </label>
+          <label className="flex flex-col gap-0.5 shrink-0">
+            <span className="font-mono text-[9px] uppercase tracking-wider text-orange-700 px-0.5">
+              Probation
+            </span>
+          <select
+            value={probationFilter}
+            onChange={(e) => setProbationFilter(e.target.value)}
+            title="Filter by HR probation status (separate from staffing flags)"
+            className="rounded border border-orange-200 bg-orange-50/50 px-2 py-2 text-sm min-w-[148px]"
+          >
+            <option value="">All</option>
+            <option value="active">
+              On probation ({flagCounts.probation})
+            </option>
+            <option value="inactive">
+              Not on probation ({members.length - flagCounts.probation})
+            </option>
+          </select>
+          </label>
           {aiFilterIds !== null && (
             <span className="font-mono text-[10px] rounded-full border border-accent/50 bg-accent/10 text-accent px-2 py-1">
               AI: {aiFilterLabel || `${aiFilterIds.size} shown`}
@@ -535,6 +573,7 @@ export function TeamDirectory() {
             specFilter ||
             tagFilter.length > 0 ||
             flagFilter ||
+            probationFilter ||
             aiFilterIds !== null) && (
             <button
               type="button"
@@ -543,6 +582,7 @@ export function TeamDirectory() {
                 setSpecFilter("");
                 setTagFilter([]);
                 setFlagFilter("");
+                setProbationFilter("");
                 setAiFilterIds(null);
                 setAiFilterLabel("");
               }}

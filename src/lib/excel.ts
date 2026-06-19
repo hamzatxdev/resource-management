@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { AiFlag, TeamMemberInput, WorkflowEntry } from "./types";
+import type { AiFlag, ProbationFlag, TeamMemberInput, WorkflowEntry } from "./types";
 
 export interface ExcelRow {
   id: string;
@@ -93,6 +93,7 @@ export type ExportMemberRow = {
   nextSteps?: string;
   escalations?: WorkflowEntry[];
   aiFlags?: AiFlag;
+  probation?: ProbationFlag;
 };
 
 export function membersToExportSheet(members: ExportMemberRow[]): Buffer {
@@ -115,6 +116,8 @@ export function membersToExportSheet(members: ExportMemberRow[]): Buffer {
     Escalations: (m.escalations ?? []).map((e) => e.text).join(" | "),
     "AI Flag": m.aiFlags?.flagged ? m.aiFlags.severity : "",
     "Flag Summary": m.aiFlags?.summary ?? "",
+    Probation: m.probation?.active ? "yes" : "",
+    "Probation Summary": m.probation?.summary ?? "",
   }));
 
   const ws = XLSX.utils.json_to_sheet(data);

@@ -1,7 +1,8 @@
 import mongoose, { Schema, type InferSchemaType } from "mongoose";
 import { normalizeAiFlag } from "@/lib/aiFlags";
+import { normalizeProbation } from "@/lib/probation";
 import { dedupeTags } from "@/lib/tags";
-import { DEFAULT_AI_FLAG } from "@/lib/types";
+import { DEFAULT_AI_FLAG, DEFAULT_PROBATION } from "@/lib/types";
 import {
   buildNextStepsLog,
   normalizeWorkflowEntries,
@@ -33,6 +34,16 @@ const AiFlagSchema = new Schema(
   { _id: false }
 );
 
+const ProbationSchema = new Schema(
+  {
+    active: { type: Boolean, default: false },
+    summary: { type: String, default: "" },
+    reasons: { type: [String], default: [] },
+    since: { type: Date },
+  },
+  { _id: false }
+);
+
 const TeamMemberSchema = new Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
@@ -54,6 +65,7 @@ const TeamMemberSchema = new Schema(
     embedding: { type: [Number], default: undefined },
     embeddingText: { type: String, default: "" },
     aiFlags: { type: AiFlagSchema, default: () => ({ ...DEFAULT_AI_FLAG }) },
+    probation: { type: ProbationSchema, default: () => ({ ...DEFAULT_PROBATION }) },
     nextSteps: { type: String, default: "" },
     nextStepsLog: { type: [WorkflowEntrySchema], default: [] },
     escalations: { type: [WorkflowEntrySchema], default: [] },
@@ -107,6 +119,7 @@ export function docToPlain(doc: unknown) {
     embedding: d.embedding as number[] | undefined,
     embeddingText: (d.embeddingText as string) ?? "",
     aiFlags: normalizeAiFlag(d.aiFlags),
+    probation: normalizeProbation(d.probation),
     nextSteps: (d.nextSteps as string) ?? "",
     nextStepsLog: buildNextStepsLog(
       d.nextStepsLog,
