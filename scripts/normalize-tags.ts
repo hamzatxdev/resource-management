@@ -3,7 +3,8 @@
  *
  *   npm run normalize-tags
  *
- * Merges variants like allocated:cis:core team / Core-team into allocated:cis:core-team.
+ * Merges variants like allocated:cis:core team / Core-team into allocated:cis:core-team,
+ * and onbench / Onbench / onBench into onbench.
  */
 import { config } from "dotenv";
 import path from "path";

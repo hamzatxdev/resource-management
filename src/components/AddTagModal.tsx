@@ -2,25 +2,41 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  currentTagTypingFragment,
   mergeTags,
   parseTag,
   parseTagsInput,
+  replaceCurrentTagToken,
   tagCanonicalKey,
   TAG_EXAMPLES,
 } from "@/lib/tags";
 import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+
+function tagSuggestionScore(tag: string, fragment: string): number {
+  const f = fragment.toLowerCase();
+  const raw = tag.toLowerCase();
+  const label = parseTag(tag).label.toLowerCase();
+  if (raw.startsWith(f)) return 0;
+  if (label.startsWith(f)) return 1;
+  if (raw.includes(f)) return 2;
+  if (label.includes(f)) return 3;
+  return 4;
+}
 
 export function AddTagModal({
   open,
   onClose,
   memberName,
   existingTags,
+  teamTags = [],
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
   memberName: string;
   existingTags: string[];
+  /** All tags used across the team — powers autocomplete */
+  teamTags?: string[];
   onSubmit: (tags: string[]) => Promise<void>;
 }) {
   const [input, setInput] = useState("");
@@ -42,6 +58,32 @@ export function AddTagModal({
     [parsed, existingKeys]
   );
 
+  const typingFragment = useMemo(() => currentTagTypingFragment(input), [input]);
+
+  const suggestions = useMemo(() => {
+    const fragment = typingFragment.trim().toLowerCase();
+    if (!fragment) return [];
+
+    const alreadyChosen = new Set([
+      ...existingTags.map(tagCanonicalKey),
+      ...parsed.map(tagCanonicalKey),
+    ]);
+
+    return teamTags
+      .filter((tag) => {
+        const key = tagCanonicalKey(tag);
+        if (alreadyChosen.has(key)) return false;
+        const preview = parseTag(tag);
+        const hay = `${tag} ${preview.label}`.toLowerCase();
+        return hay.includes(fragment);
+      })
+      .sort(
+        (a, b) =>
+          tagSuggestionScore(a, fragment) - tagSuggestionScore(b, fragment)
+      )
+      .slice(0, 8);
+  }, [typingFragment, teamTags, existingTags, parsed]);
+
   useEffect(() => {
     if (open) {
       setInput("");
@@ -50,12 +92,11 @@ export function AddTagModal({
   }, [open]);
 
   const appendExample = (ex: string) => {
-    setInput((prev) => {
-      const parts = parseTagsInput(prev);
-      if (parts.includes(ex)) return prev;
-      const next = [...parts, ex].join("\n");
-      return prev.trim() ? `${prev.trimEnd()}\n${ex}` : ex;
-    });
+    setInput((prev) => replaceCurrentTagToken(prev, ex));
+  };
+
+  const applySuggestion = (tag: string) => {
+    setInput((prev) => replaceCurrentTagToken(prev, tag));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,9 +159,37 @@ export function AddTagModal({
             placeholder={"project:acme\nmay:bench\nallocation:june:cis:4h"}
             rows={4}
             className={`${modalInputClass} font-mono resize-y min-h-[5rem]`}
-            autoFocus
           />
         </ModalField>
+
+        {suggestions.length > 0 && (
+          <div>
+            <p className="font-mono text-[10px] text-text-faint mb-1">
+              Existing tags matching “{typingFragment.trim()}”
+            </p>
+            <ul className="rounded border border-border bg-bg-elev divide-y divide-border max-h-36 overflow-y-auto">
+              {suggestions.map((tag) => {
+                const preview = parseTag(tag);
+                return (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestion(tag)}
+                      className="w-full text-left px-2 py-1.5 hover:bg-accent/10 transition-colors"
+                    >
+                      <span className="text-accent font-medium text-sm">
+                        {preview.label}
+                      </span>
+                      <span className="block font-mono text-[10px] text-text-faint">
+                        {preview.raw}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {previews.length > 0 && (
           <ul className="text-sm rounded border border-border bg-bg-elev divide-y divide-border max-h-40 overflow-y-auto">

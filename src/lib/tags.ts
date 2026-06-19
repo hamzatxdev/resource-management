@@ -103,11 +103,11 @@ export function normalizeTagPart(part: string): string {
     .replace(/-+/g, "-");
 }
 
-/** Canonical stored form for colon tags; freeform trimmed as-is. */
+/** Canonical stored form: colon segments lowercased; freeform lowercased with spaces → hyphens. */
 export function normalizeTagInput(raw: string): string {
   const tag = raw.trim();
   if (!tag) return "";
-  if (!tag.includes(":")) return tag;
+  if (!tag.includes(":")) return normalizeTagPart(tag);
   return tag
     .split(":")
     .map((p) => normalizeTagPart(p))
@@ -264,6 +264,25 @@ export function parseTagsInput(raw: string): string[] {
     out.push(t);
   }
   return dedupeTags(out);
+}
+
+/** Partial tag currently being typed (after last comma/newline/semicolon). */
+export function currentTagTypingFragment(raw: string): string {
+  const parts = raw.split(/[,;\n]/);
+  return parts[parts.length - 1] ?? "";
+}
+
+/** Replace the in-progress token with a chosen tag. */
+export function replaceCurrentTagToken(input: string, tag: string): string {
+  const sepIdx = Math.max(
+    input.lastIndexOf("\n"),
+    input.lastIndexOf(","),
+    input.lastIndexOf(";")
+  );
+  const head = sepIdx === -1 ? "" : input.slice(0, sepIdx + 1);
+  if (!head) return `${tag}\n`;
+  if (head.endsWith("\n")) return `${head}${tag}\n`;
+  return `${head}${tag}, `;
 }
 
 /** Map spec: tags to canonical specialization labels */

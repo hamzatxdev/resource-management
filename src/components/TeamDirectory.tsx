@@ -712,6 +712,7 @@ export function TeamDirectory() {
         onClose={() => setTagModalMember(null)}
         memberName={tagModalMember?.name ?? ""}
         existingTags={tagModalMember?.tags ?? []}
+        teamTags={allTags}
         onSubmit={async (newTags) => {
           if (!tagModalMember) return;
           const tags = mergeTags(tagModalMember.tags, newTags);
