@@ -96,7 +96,6 @@ export function AddPersonModal({
               onChange={(e) => setId(e.target.value)}
               placeholder="TV-00999"
               className={`${modalInputClass} font-mono`}
-              autoFocus
             />
           </ModalField>
           <ModalField label="Name">

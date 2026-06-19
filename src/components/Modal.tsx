@@ -32,12 +32,21 @@ export function Modal({
     };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
-    panelRef.current?.querySelector<HTMLElement>("input,textarea,select,button")?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      panelRef.current
+        ?.querySelector<HTMLElement>("input,textarea,select,button")
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   if (!open) return null;
 
