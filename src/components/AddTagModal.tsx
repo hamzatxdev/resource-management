@@ -11,6 +11,7 @@ import {
   TAG_EXAMPLES,
 } from "@/lib/tags";
 import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { TagsList } from "./TagChip";
 
 function tagSuggestionScore(tag: string, fragment: string): number {
   const f = fragment.toLowerCase();
@@ -152,7 +153,23 @@ export function AddTagModal({
       }
     >
       <form id="add-tag-form" onSubmit={handleSubmit} className="space-y-3">
-        <ModalField label="Tags">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-text-faint mb-1.5">
+            Current tags on profile
+            {existingTags.length > 0 ? ` (${existingTags.length})` : ""}
+          </p>
+          {existingTags.length > 0 ? (
+            <div className="rounded border border-border bg-bg-elev p-2 max-h-36 overflow-y-auto">
+              <TagsList tags={existingTags} />
+            </div>
+          ) : (
+            <p className="text-text-dim text-xs rounded border border-dashed border-border px-3 py-2">
+              No tags yet — add below.
+            </p>
+          )}
+        </div>
+
+        <ModalField label="Add new tags">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
