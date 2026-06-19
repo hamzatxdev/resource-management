@@ -176,6 +176,11 @@ export function TeamDirectory() {
     setTimeout(() => setToast(""), 3000);
   };
 
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
+
   const resolveAssessTargets = (
     scope: AssessScope,
     single?: TeamMemberClient
@@ -466,6 +471,13 @@ export function TeamDirectory() {
               className="rounded border border-border px-3 py-1.5"
             >
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="rounded border border-border px-3 py-1.5 text-text-dim hover:border-bad hover:text-bad"
+            >
+              Log out
             </button>
           </div>
           </div>
