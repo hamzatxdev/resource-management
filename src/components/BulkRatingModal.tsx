@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RATING_STEPS } from "@/lib/inferRatings";
 import { RatingBadge, ratingClass } from "./RatingBadge";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Modal, ModalButton, ModalField, modalInputClass, modalSelectClass } from "./Modal";
 import type { TeamMemberClient } from "@/lib/types";
 
 /** null = use AI rating (clear override) */
@@ -165,7 +165,7 @@ export function BulkRatingModal({
                           const v = e.target.value;
                           setSkill(skill, v === "ai" ? null : parseFloat(v));
                         }}
-                        className="w-full rounded border border-border bg-bg-elev px-1.5 py-1 font-mono text-[11px] outline-none focus:border-accent"
+                        className={modalSelectClass}
                       >
                         <option value="ai">AI ({ai?.toFixed(1) ?? "—"})</option>
                         {RATING_STEPS.map((step) => (

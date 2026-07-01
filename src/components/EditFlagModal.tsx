@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { FLAG_SEVERITIES, flagFromManualInput } from "@/lib/aiFlags";
 import { probationFromManualInput } from "@/lib/probation";
 import type { AiFlag, FlagSeverity, ProbationFlag } from "@/lib/types";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Select, Textarea } from "@/components/Field";
+import { Modal, ModalButton, ModalField } from "./Modal";
 
 const SEVERITY_HELP: Record<FlagSeverity, string> = {
   none: "Clear — no flag",
@@ -145,73 +146,67 @@ export function EditFlagModal({
         {tab === "staffing" ? (
           <div className="space-y-2">
             <ModalField label="Severity">
-              <select
+              <Select
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as FlagSeverity)}
-                className={`${modalInputClass} w-full py-1.5`}
               >
                 {FLAG_SEVERITIES.map((s) => (
                   <option key={s} value={s}>
                     {s} — {SEVERITY_HELP[s]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </ModalField>
 
             <ModalField label="Summary">
-              <textarea
+              <Textarea
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
-                rows={2}
+                rows={3}
                 placeholder="One-line staffing note…"
-                className={`${modalInputClass} resize-y min-h-[2.5rem]`}
               />
             </ModalField>
 
             <ModalField label="Reasons (one per line)">
-              <textarea
+              <Textarea
                 value={reasonsText}
                 onChange={(e) => setReasonsText(e.target.value)}
-                rows={2}
+                rows={3}
                 placeholder="Optional…"
-                className={`${modalInputClass} resize-y min-h-[2.5rem] font-mono text-[11px]`}
               />
             </ModalField>
           </div>
         ) : (
           <div className="space-y-2">
             <ModalField label="Status">
-              <select
+              <Select
                 value={probationActive ? "active" : "inactive"}
                 onChange={(e) =>
                   setProbationActive(e.target.value === "active")
                 }
-                className={`${modalInputClass} w-full py-1.5 border-orange-200`}
               >
                 <option value="inactive">Not on probation</option>
                 <option value="active">On probation</option>
-              </select>
+              </Select>
             </ModalField>
 
             {probationActive && (
               <>
                 <ModalField label="Summary">
-                  <textarea
+                  <Textarea
                     value={probationSummary}
                     onChange={(e) => setProbationSummary(e.target.value)}
-                    rows={2}
+                    rows={3}
                     placeholder="e.g. 90-day review…"
-                    className={`${modalInputClass} resize-y min-h-[2.5rem]`}
                   />
                 </ModalField>
 
                 <ModalField label="Notes (one per line)">
-                  <textarea
+                  <Textarea
                     value={probationReasonsText}
                     onChange={(e) => setProbationReasonsText(e.target.value)}
-                    rows={2}
+                    rows={3}
                     placeholder="Optional…"
-                    className={`${modalInputClass} resize-y min-h-[2.5rem] font-mono text-[11px]`}
                   />
                 </ModalField>
 

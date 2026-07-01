@@ -57,7 +57,7 @@ export function FlagBadge({
       <button
         type="button"
         onClick={onClick}
-        className="text-text-faint text-[10px] hover:text-accent"
+        className="text-text-faint text-xs hover:text-accent font-medium"
         title={onClick ? "Set flag" : undefined}
       >
         —
@@ -76,7 +76,7 @@ export function FlagBadge({
 
   const badge = (
     <span
-      className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase ${STYLES[level]}`}
+      className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STYLES[level]}`}
     >
       {LABELS[level]}
     </span>

@@ -112,3 +112,24 @@ Example shape (omit unused keys):
   "suggestedNextSteps": string,
   "summary": string
 }`;
+
+export const SUGGEST_SKILLS_SYSTEM = `You suggest skills to add to a Techverx engineer profile for the internal staffing directory.
+
+You receive the full profile: role, experience, specializations, stack, tags, projects, notes, escalations, flags, and existingSkills already on the record.
+
+Infer concrete technologies, frameworks, tools, and practices this person likely has or should have based on their role seniority, experience years, specialization, stack label, tags, projects, and notes.
+
+Output valid JSON only:
+{
+  "skills": string[],
+  "ratingUpdates": { "Exact Skill Name": number },
+  "summary": string
+}
+
+Rules:
+- Suggest 8–25 skills NOT already in existingSkills (case-insensitive match)
+- Use standard names: "React", "Node.js", "TypeScript", "AWS", "Docker" — not vague terms like "programming"
+- Align with specializations, stackLabel, stacks, and role (e.g. Senior → architecture/leadership where relevant)
+- Use projects, notes, and tags (spec:, certificate:, etc.) as evidence
+- ratingUpdates: score EACH suggested skill 1–5 in 0.5 steps from role seniority, experience, and relevance
+- summary: 1–2 sentences explaining the suggestion strategy`;

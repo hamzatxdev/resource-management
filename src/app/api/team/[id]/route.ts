@@ -19,6 +19,21 @@ import type { ProbationFlag } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
+const SCALAR_PATCH_KEYS = new Set([
+  "name",
+  "role",
+  "exp",
+  "expNum",
+  "email",
+  "stackLabel",
+  "notes",
+]);
+
+function isScalarOnlyPatch(body: Record<string, unknown>): boolean {
+  const keys = Object.keys(body).filter((k) => body[k] !== undefined);
+  return keys.length > 0 && keys.every((k) => SCALAR_PATCH_KEYS.has(k));
+}
+
 export async function GET(_req: Request, { params }: Params) {
   try {
     await connectDB();
@@ -149,7 +164,10 @@ export async function PATCH(req: Request, { params }: Params) {
         doc.expNum = parseExpNum(body.exp);
       }
       if (body.expNum != null) doc.expNum = body.expNum;
-      if (body.email != null) doc.email = body.email;
+      if (body.email != null) {
+        doc.email = String(body.email).trim();
+        doc.markModified("email");
+      }
       if (body.stackLabel != null) doc.stackLabel = body.stackLabel;
       if (body.tags != null) doc.tags = dedupeTags(body.tags as string[]);
       if (body.projects != null) doc.projects = body.projects;
@@ -181,7 +199,7 @@ export async function PATCH(req: Request, { params }: Params) {
       specializations: (doc.specializations as string[]) ?? [],
     };
 
-    if (onlyWorkflow) {
+    if (onlyWorkflow || isScalarOnlyPatch(body)) {
       await doc.save();
       return NextResponse.json({ member: toClientMember(docToPlain(doc)) });
     }

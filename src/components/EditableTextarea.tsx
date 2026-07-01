@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Textarea } from "@/components/Field";
 
 export function EditableTextarea({
   value,
   onSave,
   placeholder,
-  rows = 2,
+  rows = 3,
   className = "",
 }: {
   value: string;
@@ -19,7 +20,7 @@ export function EditableTextarea({
   useEffect(() => setDraft(value), [value]);
 
   return (
-    <textarea
+    <Textarea
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
@@ -27,7 +28,7 @@ export function EditableTextarea({
       }}
       placeholder={placeholder}
       rows={rows}
-      className={`w-full rounded border border-border bg-bg-elev px-1.5 py-1 font-mono text-[10px] text-text outline-none focus:border-accent resize-y min-h-[2.5rem] ${className}`}
+      className={className}
     />
   );
 }

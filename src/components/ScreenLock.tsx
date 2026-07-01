@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { modalInputClass } from "./Modal";
+import { Field, Input } from "@/components/Field";
+import { uiBtn } from "@/lib/ui";
 
 export function ScreenLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -47,16 +48,10 @@ export function ScreenLockProvider({ children }: { children: ReactNode }) {
       if (document.hidden) lock();
     };
 
-    const onBlur = () => {
-      if (!document.hasFocus()) lock();
-    };
-
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
     };
   }, [active, lock]);
 
@@ -112,36 +107,38 @@ export function ScreenLockProvider({ children }: { children: ReactNode }) {
 
       {locked && active && (
         <div
-          className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/55 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           aria-label="Screen locked"
         >
-          <div className="w-full max-w-xs rounded-lg border border-border bg-bg-card shadow-card-lg p-5">
-            <p className="font-mono text-[10px] text-text-faint uppercase tracking-widest mb-1">
+          <div className="w-full max-w-xs ui-card p-6 shadow-card-lg">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
               Screen locked
             </p>
-            <h2 className="font-display text-xl mb-1">Enter PIN</h2>
-            <p className="text-text-dim text-xs mb-4">
-              You left this tab. Enter your PIN to continue.
+            <h2 className="text-xl font-semibold text-slate-900 mb-1">Enter PIN</h2>
+            <p className="text-slate-500 text-sm mb-5 leading-relaxed">
+              You switched tabs or left the browser. Enter your PIN to continue.
             </p>
 
-            <form onSubmit={handleUnlock} className="space-y-3">
-              <input
-                ref={pinRef}
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder="PIN"
-                className={`${modalInputClass} text-center font-mono tracking-widest`}
-              />
-              {error && <p className="text-bad text-xs text-center">{error}</p>}
+            <form onSubmit={handleUnlock} className="space-y-4">
+              <Field label="PIN">
+                <Input
+                  ref={pinRef}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="••••"
+                  className="text-center font-mono tracking-widest"
+                />
+              </Field>
+              {error && <p className="text-red-600 text-sm text-center">{error}</p>}
               <button
                 type="submit"
                 disabled={verifying || !pin}
-                className="w-full rounded border border-accent/50 bg-accent/15 py-2 text-sm font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+                className={`w-full ${uiBtn.primary}`}
               >
                 {verifying ? "Checking…" : "Unlock"}
               </button>

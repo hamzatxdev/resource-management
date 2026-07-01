@@ -3,22 +3,36 @@
 import { useMemo, useState } from "react";
 import { parseSkillsInput } from "@/lib/skills";
 import { RATING_STEPS } from "@/lib/inferRatings";
+import { uiBtn, uiTextarea } from "@/lib/ui";
 import { RatingBadge } from "./RatingBadge";
 import { Tooltip } from "./Tooltip";
 import type { TeamMemberClient } from "@/lib/types";
+
+type AiSuggestion = {
+  skills: string[];
+  ratingUpdates: Record<string, number>;
+  summary: string;
+};
 
 export function SkillEditor({
   member,
   onUpdate,
   onRateAll,
+  onMemberRefresh,
 }: {
   member: TeamMemberClient;
   onUpdate: (patch: Record<string, unknown>) => Promise<unknown>;
   onRateAll?: () => void;
+  onMemberRefresh?: (member: TeamMemberClient) => void;
 }) {
   const [skillInput, setSkillInput] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [aiSelected, setAiSelected] = useState<Set<string>>(new Set());
 
   const parsed = useMemo(() => parseSkillsInput(skillInput), [skillInput]);
   const existingLower = useMemo(
@@ -51,6 +65,86 @@ export function SkillEditor({
     await onUpdate({ removeSkill: skill });
   };
 
+  const suggestWithAi = async () => {
+    setAiLoading(true);
+    setAiError("");
+    setAiSuggestion(null);
+    try {
+      const res = await fetch("/api/ai/suggest-skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: member.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI suggestion failed");
+
+      const skills = (data.skills as string[]) ?? [];
+      const ratingUpdates =
+        (data.ratingUpdates as Record<string, number>) ?? {};
+      const summary = String(data.summary ?? "");
+
+      if (!skills.length) {
+        setAiError(
+          summary || "AI found no additional skills to suggest for this profile."
+        );
+        return;
+      }
+
+      setAiSuggestion({ skills, ratingUpdates, summary });
+      setAiSelected(new Set(skills));
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "AI suggestion failed");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const toggleAiSkill = (skill: string) => {
+    setAiSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(skill)) next.delete(skill);
+      else next.add(skill);
+      return next;
+    });
+  };
+
+  const applyAiSkills = async () => {
+    if (!aiSuggestion) return;
+    const skills = aiSuggestion.skills.filter((s) => aiSelected.has(s));
+    if (!skills.length) return;
+
+    setAiSaving(true);
+    setAiError("");
+    try {
+      const res = await fetch("/api/ai/suggest-skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: member.id,
+          save: true,
+          skills,
+          ratingUpdates: aiSuggestion.ratingUpdates,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to add skills");
+
+      if (data.member) {
+        onMemberRefresh?.(data.member as TeamMemberClient);
+      }
+      setAiSuggestion(null);
+      setAiSelected(new Set());
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Failed to add skills");
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const selectedAiCount = aiSuggestion
+    ? aiSuggestion.skills.filter((s) => aiSelected.has(s)).length
+    : 0;
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 pb-1 border-b border-border-soft">
@@ -61,6 +155,14 @@ export function SkillEditor({
           className="rounded border border-accent/50 bg-accent/10 px-2.5 py-1 font-mono text-[11px] text-accent hover:bg-accent/20 disabled:opacity-40"
         >
           Rate all skills…
+        </button>
+        <button
+          type="button"
+          onClick={() => void suggestWithAi()}
+          disabled={aiLoading || aiSaving}
+          className="rounded border border-violet-300 bg-violet-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40"
+        >
+          {aiLoading ? "Suggesting…" : "Suggest skills (AI)"}
         </button>
         <span className="font-mono text-[10px] text-text-faint">
           {member.skills.length} skills
@@ -91,7 +193,91 @@ export function SkillEditor({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+      {aiError && (
+        <p className="text-xs text-bad rounded border border-red-200 bg-red-50 px-2.5 py-1.5">
+          {aiError}
+        </p>
+      )}
+
+      {aiSuggestion && (
+        <div className="ui-panel space-y-2 text-xs">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold text-violet-700">AI skill suggestions</p>
+              {aiSuggestion.summary && (
+                <p className="text-text-dim mt-0.5 max-w-3xl">{aiSuggestion.summary}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAiSelected(new Set(aiSuggestion.skills))}
+                className="rounded border border-border px-2 py-0.5 text-[10px] hover:border-accent"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiSelected(new Set())}
+                className="rounded border border-border px-2 py-0.5 text-[10px] hover:border-accent"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiSuggestion(null);
+                  setAiSelected(new Set());
+                }}
+                className="rounded border border-border px-2 py-0.5 text-[10px] text-text-dim"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1 max-h-[min(40vh,20rem)] overflow-y-auto">
+            {aiSuggestion.skills.map((skill) => {
+              const checked = aiSelected.has(skill);
+              const rating = aiSuggestion.ratingUpdates[skill];
+              return (
+                <label
+                  key={skill}
+                  className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono text-[10px] cursor-pointer ${
+                    checked
+                      ? "border-violet-300 bg-violet-50 text-violet-900"
+                      : "border-border bg-bg-elev text-text-dim"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleAiSkill(skill)}
+                    className="accent-violet-600 size-3"
+                  />
+                  <span className="max-w-[180px] truncate">{skill}</span>
+                  {rating != null && <RatingBadge rating={rating} />}
+                </label>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            disabled={selectedAiCount === 0 || aiSaving}
+            onClick={() => void applyAiSkills()}
+            className={`${uiBtn.soft} text-xs py-1.5 h-auto`}
+          >
+            {aiSaving
+              ? "Adding…"
+              : selectedAiCount === 1
+                ? "Add 1 skill with AI ratings"
+                : `Add ${selectedAiCount} skills with AI ratings`}
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-1 max-h-[min(50vh,28rem)] overflow-y-auto">
         {member.skills.map((skill) => {
           const ai = member.aiRatings[skill];
           const rating = member.ratings[skill] ?? ai;
@@ -128,7 +314,7 @@ export function SkillEditor({
       </div>
 
       {editing && (
-        <div className="rounded border border-border bg-bg-elev p-2 text-xs shadow-sm">
+        <div className="ui-panel text-xs">
           <p className="font-mono text-accent mb-1">{editing}</p>
           <p className="text-text-faint mb-2">
             AI: {member.aiRatings[editing]?.toFixed(1) ?? "—"}
@@ -170,7 +356,7 @@ export function SkillEditor({
             "AI, ML, RAG, Langchain, FastAPI, Django\nor one skill per line"
           }
           rows={3}
-          className="w-full rounded border border-border bg-bg-elev px-2 py-1.5 font-mono text-[11px] outline-none focus:border-accent resize-y min-h-[4rem]"
+          className={uiTextarea}
         />
         {parsed.length > 0 && (
           <p className="text-[10px] text-text-faint">
@@ -185,7 +371,7 @@ export function SkillEditor({
           type="button"
           disabled={!toAdd.length || adding}
           onClick={addSkills}
-          className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-[11px] text-accent hover:bg-accent/20 disabled:opacity-40"
+          className={`${uiBtn.soft} text-xs py-1.5 h-auto`}
         >
           {adding
             ? "Adding…"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { membersToExportSheet } from "@/lib/excel";
+import { membersToExportSheet, type ExportMeta } from "@/lib/excel";
 import { docToPlain, TeamMemberModel } from "@/models/TeamMember";
 
 function parseIdsParam(raw: string | null): string[] | undefined {
@@ -14,6 +14,7 @@ function parseIdsParam(raw: string | null): string[] | undefined {
 
 async function loadMembersForExport(ids?: string[]) {
   await connectDB();
+  if (ids && ids.length === 0) return [];
   const query = ids?.length ? { id: { $in: ids } } : {};
   const docs = await TeamMemberModel.find(query).lean();
   const members = docs.map((d) => docToPlain(d));
@@ -30,22 +31,28 @@ async function loadMembersForExport(ids?: string[]) {
 
 async function exportResponse(
   members: Awaited<ReturnType<typeof loadMembersForExport>>,
-  format: string
+  format: string,
+  meta?: ExportMeta
 ) {
   if (format === "json") {
     return NextResponse.json({
       members,
       count: members.length,
       exportedAt: new Date().toISOString(),
+      filterSummary: meta?.filterSummary ?? null,
+      filteredOnly: meta?.filteredOnly ?? false,
     });
   }
 
-  const buffer = membersToExportSheet(members);
+  const buffer = membersToExportSheet(members, meta);
+  const stem = meta?.filteredOnly
+    ? `team-export-filtered-${members.length}`
+    : `team-export-${members.length}`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="team-export-${members.length}-rows-${Date.now()}.xlsx"`,
+      "Content-Disposition": `attachment; filename="${stem}-${Date.now()}.xlsx"`,
     },
   });
 }
@@ -70,13 +77,23 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       format?: string;
       ids?: string[];
+      filterSummary?: string;
+      filteredOnly?: boolean;
     };
     const format = body.format ?? "xlsx";
-    const ids = Array.isArray(body.ids)
-      ? body.ids.map((s) => String(s).trim()).filter(Boolean)
-      : undefined;
+    const filteredOnly = Boolean(body.filteredOnly);
+    const filterSummary = body.filterSummary?.trim() || undefined;
+
+    let ids: string[] | undefined;
+    if (Array.isArray(body.ids)) {
+      ids = body.ids.map((s) => String(s).trim()).filter(Boolean);
+      if (filteredOnly && ids.length === 0) {
+        return exportResponse([], format, { filterSummary, filteredOnly });
+      }
+    }
+
     const members = await loadMembersForExport(ids);
-    return exportResponse(members, format);
+    return exportResponse(members, format, { filterSummary, filteredOnly });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Export failed" },

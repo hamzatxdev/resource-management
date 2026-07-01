@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { Field, Input } from "@/components/Field";
+import { uiBtn } from "@/lib/ui";
 
 function LoginForm() {
   const router = useRouter();
@@ -59,19 +61,19 @@ function LoginForm() {
 
   if (checking) {
     return (
-      <p className="text-text-dim font-mono text-sm text-center">Checking session…</p>
+      <p className="text-slate-500 text-sm text-center">Checking session…</p>
     );
   }
 
   if (!configured || configError) {
     return (
-      <div className="rounded border border-warn/40 bg-amber-50 px-3 py-3 text-sm text-text">
-        <p className="font-medium text-warn mb-2">Authentication not configured</p>
-        <p className="text-text-dim text-xs leading-relaxed">
-          Add both variables to <code className="text-accent">.env</code> and restart
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-slate-800">
+        <p className="font-semibold text-amber-800 mb-2">Authentication not configured</p>
+        <p className="text-slate-600 text-sm leading-relaxed">
+          Add both variables to <code className="ui-kbd">.env</code> and restart
           the server:
         </p>
-        <pre className="mt-2 font-mono text-[10px] bg-bg-elev rounded p-2 overflow-x-auto">
+        <pre className="mt-3 font-mono text-xs bg-white rounded-lg border border-slate-200 p-3 overflow-x-auto">
           {`AUTH_PASSWORD=your-strong-password\nAUTH_SECRET=$(openssl rand -hex 32)`}
         </pre>
       </div>
@@ -79,32 +81,25 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label
-          htmlFor="password"
-          className="block font-mono text-[10px] uppercase tracking-wider text-text-faint mb-1"
-        >
-          Password
-        </label>
-        <input
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <Field label="Password">
+        <Input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
           required
-          className="w-full rounded border border-border bg-bg-elev px-3 py-2.5 text-sm text-text outline-none focus:border-accent focus:ring-1 focus:ring-accent/25"
           placeholder="Team directory password"
         />
-      </div>
+      </Field>
 
-      {error && <p className="text-bad text-xs">{error}</p>}
+      {error && <p className="text-red-600 text-sm">{error}</p>}
 
       <button
         type="submit"
         disabled={loading || !password}
-        className="w-full rounded border border-accent/50 bg-accent/15 py-2.5 text-sm font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+        className={`w-full ${uiBtn.primary}`}
       >
         {loading ? "Signing in…" : "Sign in"}
       </button>
@@ -114,21 +109,21 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-bg">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-bg-card shadow-card-lg p-6">
-        <p className="font-mono text-[10px] text-text-faint tracking-widest uppercase mb-2">
-          Techverx · Internal
-        </p>
-        <h1 className="font-display text-2xl mb-1">Team Directory</h1>
-        <p className="text-text-dim text-sm mb-6">
-          Sign in to access the team skills database.
-        </p>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-slate-100">
+      <div className="w-full max-w-md ui-card p-8 shadow-card-lg">
+        <div className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+            Techverx · Internal
+          </p>
+          <h1 className="text-2xl font-bold text-slate-900">Team Directory</h1>
+          <p className="text-slate-500 text-sm mt-2">
+            Sign in to access the team skills database.
+          </p>
+        </div>
 
         <Suspense
           fallback={
-            <p className="text-text-dim font-mono text-sm text-center">
-              Loading…
-            </p>
+            <p className="text-slate-500 text-sm text-center">Loading…</p>
           }
         >
           <LoginForm />

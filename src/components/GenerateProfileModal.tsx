@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TAG_EXAMPLES } from "@/lib/tags";
 import { TagsList } from "./TagChip";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Modal, ModalButton, ModalField, modalInputClass, modalTextareaClass } from "./Modal";
 import type { TeamMemberClient } from "@/lib/types";
 
 interface GeneratedProfile {
@@ -128,7 +128,7 @@ export function GenerateProfileModal({
             onChange={(e) => setNotes(e.target.value)}
             rows={6}
             placeholder={`Example:\nSenior MERN engineer, 5 years exp.\nMay on bench. June allocated to CIS project 4 hours per day.\nSkills: React, Node, MongoDB, AWS...`}
-            className={`${modalInputClass} resize-y`}
+            className={modalTextareaClass}
           />
         </ModalField>
 

@@ -15,7 +15,7 @@ export function RatingBadge({
 }) {
   return (
     <span
-      className={`font-mono text-[10px] tabular-nums ${ratingClass(rating)}`}
+      className={`text-xs font-semibold tabular-nums ${ratingClass(rating)}`}
       title={overridden ? "User override" : "AI rating"}
     >
       {rating.toFixed(1)}

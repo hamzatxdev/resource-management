@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Textarea, TextareaSm } from "@/components/Field";
+import { uiBtn } from "@/lib/ui";
 
 export function AiPanel({
   onApplyFilter,
@@ -13,7 +15,7 @@ export function AiPanel({
   aiFilterActive?: boolean;
   onClearFilter?: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [matcherInput, setMatcherInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,14 +47,16 @@ export function AiPanel({
       }
 
       const mode = data.filterMode as string | undefined;
+      const nlSummary = data.filterSummary as string | undefined;
       const summary =
-        mode === "tags"
+        nlSummary ??
+        (mode === "tags"
           ? `${count} matches (tags)`
           : matcherInput.trim() && message.trim()
             ? `${count} matches (skills + search)`
             : matcherInput.trim()
               ? `${count} skill matches`
-              : `${count} matches`;
+              : `${count} matches`);
 
       onApplyFilter(ids, summary);
       setStatus(
@@ -85,26 +89,25 @@ export function AiPanel({
 
   return (
     <aside
-      className={`flex flex-col border border-border rounded-lg bg-bg-card shadow-card transition-all ${
-        open ? "w-full lg:w-80 shrink-0" : "w-12"
+      className={`flex flex-col ui-card overflow-hidden transition-all duration-300 min-h-0 ${
+        open ? "w-full lg:w-72 shrink-0" : "w-11 shrink-0"
       }`}
     >
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-between px-3 py-2 border-b border-border font-mono text-[11px] text-accent uppercase tracking-wider"
+        className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-blue-50 text-sm font-semibold text-blue-700"
       >
-        {open ? "AI table filter" : "AI"}
-        <span>{open ? "−" : "+"}</span>
+        {open ? "AI filter" : "AI"}
+        <span className="text-slate-400">{open ? "−" : "+"}</span>
       </button>
 
       {open && (
-        <div className="flex flex-col flex-1 p-3 gap-3 min-h-0 overflow-hidden">
-          <p className="text-[10px] text-text-faint leading-snug">
-            Filters the main table using semantic search on profiles. Optional
-            matcher narrows by skill ratings (e.g. React.js:4, Node.js:4).
+        <div className="flex flex-col flex-1 p-4 gap-4 min-h-0 overflow-hidden">
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Natural language → tag filters. Skill questions use semantic search.
           </p>
-          <textarea
+          <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => {
@@ -113,23 +116,23 @@ export function AiPanel({
                 void ask();
               }
             }}
-            placeholder="Who is on bench in May? Who is allocated to CIS in June? Best MERN dev at 4+?"
-            rows={3}
-            className="w-full rounded border border-border bg-bg-elev px-2 py-2 text-sm text-text resize-none outline-none focus:border-accent focus:ring-1 focus:ring-accent/25"
+            placeholder="Who is on bench? Replacement but not bench. SSE on CIS…"
+            rows={4}
+            className="min-h-[6rem]"
           />
-          <textarea
+          <TextareaSm
             value={matcherInput}
             onChange={(e) => setMatcherInput(e.target.value)}
-            placeholder="Optional matcher: React.js:4, Node.js:4, MongoDB:3"
+            placeholder="Matcher: React.js:4, Node.js:4"
             rows={2}
-            className="w-full rounded border border-border bg-bg-elev px-2 py-1.5 font-mono text-[10px] text-text resize-none outline-none focus:border-accent focus:ring-1 focus:ring-accent/25"
+            className="font-mono"
           />
           <div className="flex gap-2">
             <button
               type="button"
               onClick={ask}
               disabled={loading}
-              className="flex-1 rounded bg-accent/20 border border-accent/50 py-1.5 text-sm text-accent hover:bg-accent/30 disabled:opacity-50"
+              className={`flex-1 ${uiBtn.primary}`}
             >
               {loading ? "Searching…" : "Filter table"}
             </button>
@@ -138,7 +141,7 @@ export function AiPanel({
               onClick={reindex}
               disabled={loading}
               title="Rebuild embeddings for all profiles"
-              className="rounded border border-border px-2 py-1.5 text-[10px] text-text-dim hover:border-accent"
+              className={uiBtn.default}
             >
               Reindex
             </button>
@@ -151,15 +154,15 @@ export function AiPanel({
                 onClearFilter();
                 setStatus("");
               }}
-              className="text-xs text-accent hover:underline text-left"
+              className="text-sm text-blue-600 hover:underline text-left font-medium"
             >
               Clear AI filter ({activeFilterCount})
             </button>
           )}
 
-          {error && <p className="text-bad text-xs">{error}</p>}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           {status && (
-            <p className="text-xs text-text-dim leading-relaxed">{status}</p>
+            <p className="text-sm text-slate-500 leading-relaxed">{status}</p>
           )}
         </div>
       )}

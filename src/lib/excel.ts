@@ -96,7 +96,15 @@ export type ExportMemberRow = {
   probation?: ProbationFlag;
 };
 
-export function membersToExportSheet(members: ExportMemberRow[]): Buffer {
+export type ExportMeta = {
+  filterSummary?: string;
+  filteredOnly?: boolean;
+};
+
+export function membersToExportSheet(
+  members: ExportMemberRow[],
+  meta?: ExportMeta
+): Buffer {
   const data = members.map((m) => ({
     "Employee Code": m.id,
     "Employee Name": m.name,
@@ -120,7 +128,28 @@ export function membersToExportSheet(members: ExportMemberRow[]): Buffer {
     "Probation Summary": m.probation?.summary ?? "",
   }));
 
-  const ws = XLSX.utils.json_to_sheet(data);
+  const preamble: string[][] = [];
+  if (meta?.filterSummary) {
+    preamble.push(["Export filter", meta.filterSummary]);
+  }
+  if (meta?.filteredOnly) {
+    preamble.push(["Scope", "Filtered / selected rows only"]);
+  }
+  preamble.push(["Exported at", new Date().toISOString()]);
+  preamble.push(["Row count", String(members.length)]);
+
+  const ws =
+    preamble.length > 0
+      ? (() => {
+          const sheet = XLSX.utils.aoa_to_sheet(preamble);
+          XLSX.utils.sheet_add_json(sheet, data, {
+            origin: { r: preamble.length + 1, c: 0 },
+            skipHeader: false,
+          });
+          return sheet;
+        })()
+      : XLSX.utils.json_to_sheet(data);
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Team");
   return Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));

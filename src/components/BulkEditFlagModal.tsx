@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { FLAG_SEVERITIES, flagFromManualInput } from "@/lib/aiFlags";
 import type { AiFlag, FlagSeverity } from "@/lib/types";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Modal, ModalButton, ModalField, modalSelectClass, modalTextareaClass } from "./Modal";
 
 const SEVERITY_HELP: Record<FlagSeverity, string> = {
   none: "Clear — no flag",
@@ -103,7 +103,7 @@ export function BulkEditFlagModal({
           <select
             value={severity}
             onChange={(e) => setSeverity(e.target.value as FlagSeverity)}
-            className={`${modalInputClass} w-full`}
+            className={modalSelectClass}
           >
             {FLAG_SEVERITIES.map((s) => (
               <option key={s} value={s}>
@@ -119,7 +119,7 @@ export function BulkEditFlagModal({
             onChange={(e) => setSummary(e.target.value)}
             rows={2}
             placeholder="One-line staffing note (same for everyone)…"
-            className={`${modalInputClass} resize-y`}
+            className={modalTextareaClass}
           />
         </ModalField>
 
@@ -129,7 +129,7 @@ export function BulkEditFlagModal({
             onChange={(e) => setReasonsText(e.target.value)}
             rows={4}
             placeholder="Optional bullet reasons (same for everyone)…"
-            className={`${modalInputClass} resize-y font-mono text-[11px]`}
+            className={modalTextareaClass}
           />
         </ModalField>
 

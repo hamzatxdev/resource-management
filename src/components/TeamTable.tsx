@@ -19,7 +19,9 @@ import { EditFlagModal } from "./EditFlagModal";
 import { FlagBadge } from "./FlagBadge";
 import { ProbationBadge } from "./ProbationBadge";
 import { WorkflowEntriesModal } from "./WorkflowEntriesModal";
+import { InputCell } from "@/components/Field";
 import type { TeamMemberClient } from "@/lib/types";
+import { uiBtn } from "@/lib/ui";
 
 const STORAGE_KEY = "techverx-table-columns-v4";
 
@@ -40,15 +42,15 @@ type ColKey =
   | "escalation"
   | "actions";
 
-const COLS: { key: ColKey; label: string; min: number; default: number }[] = [
+const COLS: { key: ColKey; label: string; short?: string; min: number; default: number }[] = [
   { key: "select", label: "", min: 32, default: 36 },
-  { key: "id", label: "ID", min: 72, default: 96 },
+  { key: "id", label: "Employee ID", short: "ID", min: 72, default: 96 },
   { key: "name", label: "Name", min: 100, default: 130 },
-  { key: "flag", label: "Flag", min: 52, default: 64 },
+  { key: "flag", label: "Staffing flag", short: "Flag", min: 52, default: 64 },
   { key: "probation", label: "Probation", min: 56, default: 72 },
   { key: "role", label: "Role", min: 120, default: 160 },
-  { key: "exp", label: "Exp", min: 48, default: 56 },
-  { key: "spec", label: "Spec", min: 100, default: 120 },
+  { key: "exp", label: "Experience", short: "Exp", min: 48, default: 56 },
+  { key: "spec", label: "Specialization", short: "Spec", min: 100, default: 120 },
   { key: "stack", label: "Stack", min: 80, default: 120 },
   { key: "tags", label: "Tags", min: 100, default: 120 },
   { key: "skills", label: "Skills", min: 72, default: 88 },
@@ -57,6 +59,30 @@ const COLS: { key: ColKey; label: string; min: number; default: number }[] = [
   { key: "escalation", label: "Escalation", min: 88, default: 108 },
   { key: "actions", label: "", min: 56, default: 64 },
 ];
+
+type HeaderTone = "identity" | "staffing" | "probation" | "profile" | "workflow" | "default";
+
+function headerTone(key: ColKey): HeaderTone {
+  if (key === "select" || key === "id" || key === "name") return "identity";
+  if (key === "flag") return "staffing";
+  if (key === "probation") return "probation";
+  if (key === "role" || key === "exp" || key === "spec" || key === "stack" || key === "tags" || key === "skills" || key === "email") {
+    return "profile";
+  }
+  if (key === "nextSteps" || key === "escalation") return "workflow";
+  return "default";
+}
+
+function ColHeader({ label, short }: { label: string; short?: string }) {
+  if (!label) return null;
+  const display = short && label !== short ? short : label;
+  const title = short && label !== short ? label : undefined;
+  return (
+    <span className="team-table-th-label" title={title}>
+      {display}
+    </span>
+  );
+}
 
 const DEFAULT_WIDTHS = Object.fromEntries(
   COLS.map((c) => [c.key, c.default])
@@ -94,7 +120,7 @@ function frozenCellClasses(
     ? "shadow-[4px_0_6px_-2px_rgba(15,23,42,0.08)] border-r border-border-soft"
     : "";
   if (opts.header) {
-    return `frozen-cell frozen-cell-header bg-white ${shadow}`;
+    return `frozen-cell frozen-cell-header ${shadow}`;
   }
   const tone = opts.tone ?? "default";
   const bg =
@@ -132,45 +158,59 @@ function EditableCell({
   value,
   onSave,
   className = "",
+  emptyLabel = "—",
+  placeholder = "Click to add…",
 }: {
   value: string;
-  onSave: (v: string) => void;
+  onSave: (v: string) => void | Promise<unknown>;
   className?: string;
+  emptyLabel?: string;
+  placeholder?: string;
 }) {
-  const [draft, setDraft] = useState(value);
+  const normalized = value ?? "";
+  const [draft, setDraft] = useState(normalized);
   const [editing, setEditing] = useState(false);
-  useEffect(() => setDraft(value), [value]);
+  useEffect(() => setDraft(normalized), [normalized]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = draft.trim();
+    if (next !== normalized.trim()) void onSave(next);
+  };
 
   if (editing) {
     return (
-      <input
+      <InputCell
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          setEditing(false);
-          if (draft !== value) onSave(draft);
-        }}
+        onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") {
-            setDraft(value);
+            setDraft(normalized);
             setEditing(false);
           }
         }}
         autoFocus
-        className={`w-full bg-bg-elev border border-accent/40 rounded px-1 py-0.5 font-mono text-xs outline-none ${className}`}
+        placeholder={placeholder}
+        className={className}
       />
     );
   }
 
+  const display = normalized.trim();
+  const tip = display || placeholder;
+
   return (
-    <Tooltip content={value}>
+    <Tooltip content={tip} force={!display}>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className={`w-full text-left truncate font-mono text-xs hover:text-accent ${className}`}
+        className={`ui-cell-btn ${className}`}
       >
-        {value || <span className="text-text-faint italic">—</span>}
+        {display || (
+          <span className="ui-cell-btn-empty">{emptyLabel}</span>
+        )}
       </button>
     </Tooltip>
   );
@@ -243,7 +283,7 @@ function WorkflowCellButton({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded border border-border bg-bg-elev/80 px-2 py-1 font-mono text-[10px] text-text-dim hover:border-accent/50 hover:text-accent text-left truncate"
+        className={`${uiBtn.ghost} w-full justify-start px-2.5 py-1.5 text-xs h-auto min-h-[2rem]`}
       >
         {label}
         {count > 0 ? ` (${count})` : ""}
@@ -339,9 +379,19 @@ export function TeamTable({
 
   const lastFrozenCol = FROZEN_COLS[FROZEN_COLS.length - 1];
 
-  const stickyFrozenStyle = (key: ColKey): CSSProperties | undefined => {
+  const frozenZIndex = (key: ColKey, header: boolean): number => {
+    const idx = FROZEN_COLS.indexOf(key);
+    if (idx < 0) return header ? 20 : 0;
+    return (header ? 50 : 30) + idx;
+  };
+
+  const stickyFrozenStyle = (key: ColKey, header = false): CSSProperties | undefined => {
     if (!isFrozenCol(key)) return undefined;
-    return { left: frozenLeft[key] ?? 0 };
+    return {
+      position: "sticky",
+      left: frozenLeft[key] ?? 0,
+      zIndex: frozenZIndex(key, header),
+    };
   };
   const allVisibleSelected =
     members.length > 0 && members.every((m) => selectedIds.has(m.id));
@@ -354,17 +404,17 @@ export function TeamTable({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-bg-card overflow-hidden flex flex-col flex-1 min-h-0 max-h-full shadow-card">
-      <div className="shrink-0 flex items-center justify-between px-2 py-1 border-b border-border bg-bg-elev/50">
-        <span className="font-mono text-[10px] text-text-faint">
-          ID & name stay fixed when scrolling · Flag & Probation columns after Name · drag edges to resize
+    <div className="ui-card overflow-hidden flex flex-col flex-1 min-h-0 h-full">
+      <div className="shrink-0 flex items-center justify-between px-3 py-1 border-b team-table-chrome">
+        <span className="text-[10px] text-text-faint">
+          Frozen cols · drag to resize
         </span>
         <button
           type="button"
           onClick={resetColumns}
-          className="font-mono text-[10px] text-text-dim hover:text-accent px-2 py-0.5"
+          className={`${uiBtn.ghost} text-[10px] py-0.5 px-1.5 h-auto`}
         >
-          Reset columns
+          Reset cols
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
@@ -377,14 +427,14 @@ export function TeamTable({
               <col key={c.key} style={{ width: widths[c.key] }} />
             ))}
           </colgroup>
-          <thead className="sticky top-0 z-20">
-            <tr className="bg-bg-elev font-mono text-[10px] uppercase tracking-wider text-text-faint">
+          <thead className="sticky top-0 z-20 team-table-head">
+            <tr>
               {COLS.map((col) => (
                 <th
                   key={col.key}
-                  style={stickyFrozenStyle(col.key)}
-                  className={`sticky top-0 px-2 py-2 text-left select-none border-b border-border ${
-                    isFrozenCol(col.key) ? "z-40" : "z-20 bg-bg-elev"
+                  style={stickyFrozenStyle(col.key, true)}
+                  className={`sticky top-0 select-none team-table-th team-table-th-${headerTone(col.key)} ${
+                    isFrozenCol(col.key) ? "" : "z-20"
                   } ${frozenCellClasses(col.key, {
                     header: true,
                     lastFrozen: col.key === lastFrozenCol,
@@ -402,10 +452,10 @@ export function TeamTable({
                       }}
                       onChange={(e) => onSelectAllVisible(e.target.checked)}
                       title="Select all rows currently visible in the table"
-                      className="accent-accent"
+                      className="accent-blue-600 size-3.5"
                     />
                   ) : (
-                    col.label
+                    <ColHeader label={col.label} short={col.short} />
                   )}
                   {col.key !== "actions" && col.key !== "select" && (
                     <ResizeHandle
@@ -434,6 +484,8 @@ export function TeamTable({
                 <Fragment key={m.id}>
                   <tr
                     className={`group border-b border-border-soft hover:bg-bg-card-hover ${
+                      expandedId === m.id ? "team-table-row-expanded" : ""
+                    } ${
                       m.aiFlags?.severity === "action"
                         ? "bg-red-50/50"
                         : m.aiFlags?.severity === "replacement"
@@ -448,7 +500,7 @@ export function TeamTable({
                   >
                     <td
                       style={stickyFrozenStyle("select")}
-                      className={`sticky z-10 px-2 py-1 text-center ${frozenCellClasses("select", { tone: frozenTone })}`}
+                      className={`text-center ${frozenCellClasses("select", { tone: frozenTone })}`}
                     >
                       <input
                         type="checkbox"
@@ -459,7 +511,7 @@ export function TeamTable({
                     </td>
                     <td
                       style={stickyFrozenStyle("id")}
-                      className={`sticky z-10 px-2 py-1.5 font-mono text-[11px] text-text-dim max-w-0 ${frozenCellClasses("id", { tone: frozenTone })}`}
+                      className={`font-mono text-xs text-text-dim max-w-0 ${frozenCellClasses("id", { tone: frozenTone })}`}
                     >
                       <Tooltip content={m.id}>
                         <span>{m.id}</span>
@@ -467,7 +519,7 @@ export function TeamTable({
                     </td>
                     <td
                       style={stickyFrozenStyle("name")}
-                      className={`sticky z-10 px-2 py-1 max-w-0 ${frozenCellClasses("name", {
+                      className={`max-w-0 ${frozenCellClasses("name", {
                         tone: frozenTone,
                         lastFrozen: true,
                       })}`}
@@ -478,31 +530,31 @@ export function TeamTable({
                         className="font-medium text-text"
                       />
                     </td>
-                    <td className={`px-2 py-1 text-center max-w-0${dim}`}>
+                    <td className={`text-center max-w-0${dim}`}>
                       <FlagBadge
                         flag={m.aiFlags}
                         onClick={() => setFlagMember(m)}
                       />
                     </td>
-                    <td className={`px-2 py-1 text-center max-w-0${dim}`}>
+                    <td className={`text-center max-w-0${dim}`}>
                       <ProbationBadge
                         probation={m.probation ?? { active: false, summary: "", reasons: [] }}
                         onClick={() => setFlagMember(m)}
                       />
                     </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <EditableCell
                         value={m.role}
                         onSave={(role) => onPatch(m.id, { role })}
                       />
                     </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <EditableCell
                         value={m.exp}
                         onSave={(exp) => onPatch(m.id, { exp })}
                       />
                     </td>
-                        <td className={`px-2 py-1 max-w-0${dim}`}>
+                        <td className={`max-w-0${dim}`}>
                           <div className="flex h-[18px] items-center gap-1 min-w-0 flex-nowrap">
                             <SpecBadges
                               nowrap
@@ -523,7 +575,7 @@ export function TeamTable({
                             </button>
                           </div>
                         </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <EditableCell
                         value={m.stackLabel}
                         onSave={(stackLabel) =>
@@ -531,7 +583,7 @@ export function TeamTable({
                         }
                       />
                     </td>
-                        <td className={`px-2 py-1 max-w-0${dim}`}>
+                        <td className={`max-w-0${dim}`}>
                           <div className="flex h-[18px] items-center gap-1 min-w-0 flex-nowrap">
                             {m.tags.length > 0 ? (
                               <TagsList
@@ -560,20 +612,26 @@ export function TeamTable({
                             </button>
                           </div>
                         </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <div className="flex items-center gap-1 min-w-0">
-                        <Tooltip content={skillsPreview} force>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onExpand(expandedId === m.id ? null : m.id)
-                            }
-                            className="font-mono text-[10px] text-text-dim hover:text-accent text-left truncate flex-1 min-w-0"
-                          >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onExpand(expandedId === m.id ? null : m.id)
+                          }
+                          title={skillsPreview}
+                          className={`team-table-expand-btn flex-1 min-w-0 ${
+                            expandedId === m.id ? "team-table-expand-btn-open" : ""
+                          }`}
+                        >
+                          <span className="truncate">
                             {m.skills.length} skills
-                            {expandedId === m.id ? " ▲" : " ▼"}
-                          </button>
-                        </Tooltip>
+                            {expandedId === m.id ? " · expanded" : ""}
+                          </span>
+                          <span className="shrink-0" aria-hidden>
+                            {expandedId === m.id ? "▲" : "▼"}
+                          </span>
+                        </button>
                         {m.skills.length > 0 && (
                           <button
                             type="button"
@@ -589,13 +647,15 @@ export function TeamTable({
                         )}
                       </div>
                     </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <EditableCell
-                        value={m.email}
+                        value={m.email ?? ""}
+                        emptyLabel="Add email"
+                        placeholder="name@techverx.com"
                         onSave={(email) => onPatch(m.id, { email })}
                       />
                     </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <WorkflowCellButton
                         label="Steps"
                         count={m.nextStepsLog?.length ?? 0}
@@ -603,7 +663,7 @@ export function TeamTable({
                         onClick={() => setNextStepsMember(m)}
                       />
                     </td>
-                    <td className={`px-2 py-1 max-w-0${dim}`}>
+                    <td className={`max-w-0${dim}`}>
                       <WorkflowCellButton
                         label="Escalate"
                         count={m.escalations?.length ?? 0}
@@ -615,7 +675,7 @@ export function TeamTable({
                         onClick={() => setEscalationsMember(m)}
                       />
                     </td>
-                    <td className={`px-2 py-1 text-center whitespace-nowrap${dim}`}>
+                    <td className={`text-center whitespace-nowrap${dim}`}>
                       <button
                         type="button"
                         onClick={() => onAssess(m)}
@@ -635,11 +695,12 @@ export function TeamTable({
                     </td>
                   </tr>
                   {expandedId === m.id && (
-                    <tr className="bg-bg-card">
-                      <td colSpan={COLS.length} className="px-4 py-3">
+                    <tr className="team-table-expanded-row">
+                      <td colSpan={COLS.length} className="team-table-expanded-cell">
                         <SkillEditor
                           member={m}
                           onUpdate={(patch) => onPatch(m.id, patch)}
+                          onMemberRefresh={onMemberUpdate}
                           onRateAll={() => setBulkMember(m)}
                         />
                       </td>

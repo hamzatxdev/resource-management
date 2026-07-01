@@ -114,12 +114,13 @@ export function Tooltip({
     <span
       ref={tipRef}
       role="tooltip"
-      className="pointer-events-none fixed z-[200] rounded border border-border bg-bg-elev px-2.5 py-1.5 text-xs text-text shadow-card-lg leading-snug whitespace-pre-wrap break-words"
+      className="pointer-events-none fixed z-[200] rounded-xl border border-border-muted backdrop-blur-md px-3 py-2 text-xs text-text shadow-card-lg leading-snug whitespace-pre-wrap break-words"
       style={{
         top: coords?.top ?? 0,
         left: coords?.left ?? 0,
         maxWidth,
         visibility: coords ? "visible" : "hidden",
+        backgroundColor: "var(--surface-glass)",
       }}
     >
       {text}

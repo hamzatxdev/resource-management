@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Modal, ModalButton, ModalField, modalTextareaClass } from "./Modal";
 import type { EscalationEntry } from "@/lib/types";
 
 function formatDate(iso: string) {
@@ -93,7 +93,7 @@ export function WorkflowEntriesModal({
               onChange={(e) => setDraft(e.target.value)}
               rows={3}
               placeholder={addPlaceholder}
-              className={`${modalInputClass} resize-y`}
+              className={modalTextareaClass}
             />
           </ModalField>
           <ModalButton

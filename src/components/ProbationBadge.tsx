@@ -28,7 +28,7 @@ export function ProbationBadge({
       <button
         type="button"
         onClick={onClick}
-        className="text-text-faint text-[10px] hover:text-accent"
+        className="text-text-faint text-xs hover:text-accent font-medium"
         title={onClick ? "Set probation" : undefined}
       >
         —
@@ -46,7 +46,7 @@ export function ProbationBadge({
     .join("\n");
 
   const badge = (
-    <span className="inline-flex items-center rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase text-orange-800">
+    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
       Probation
     </span>
   );

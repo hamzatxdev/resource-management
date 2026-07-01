@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Input } from "@/components/Field";
+import { Modal, ModalButton, ModalField } from "./Modal";
 
 export function AddPersonModal({
   open,
@@ -88,53 +89,49 @@ export function AddPersonModal({
         </>
       }
     >
-      <form id="add-person-form" onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+      <form id="add-person-form" onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
           <ModalField label="Employee code *">
-            <input
+            <Input
               value={id}
               onChange={(e) => setId(e.target.value)}
               placeholder="TV-00999"
-              className={`${modalInputClass} font-mono`}
+              className="font-mono"
             />
           </ModalField>
           <ModalField label="Name">
-            <input
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name"
-              className={modalInputClass}
             />
           </ModalField>
         </div>
         <ModalField label="Role">
-          <input
+          <Input
             value={role}
             onChange={(e) => setRole(e.target.value)}
             placeholder="Software Engineer"
-            className={modalInputClass}
           />
         </ModalField>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <ModalField label="Experience">
-            <input
+            <Input
               value={exp}
               onChange={(e) => setExp(e.target.value)}
               placeholder="3+"
-              className={modalInputClass}
             />
           </ModalField>
           <ModalField label="Email">
-            <input
+            <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@techverx.com"
               type="email"
-              className={modalInputClass}
             />
           </ModalField>
         </div>
-        {error && <p className="text-bad text-xs">{error}</p>}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
       </form>
     </Modal>
   );

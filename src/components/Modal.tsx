@@ -1,6 +1,18 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import {
+  Field,
+  inputClassName,
+  labelClassName,
+  selectClassName,
+  textareaClassName,
+} from "@/components/Field";
+import { uiBtn } from "@/lib/ui";
+
+export const modalInputClass = inputClassName;
+export const modalSelectClass = selectClassName;
+export const modalTextareaClass = textareaClassName;
 
 export function Modal({
   open,
@@ -59,30 +71,30 @@ export function Modal({
       role="presentation"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" />
+      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative w-full ${width} max-h-[90vh] flex flex-col rounded-lg border border-border bg-bg-card shadow-card-lg`}
+        className={`relative w-full ${width} max-h-[90vh] flex flex-col ui-card shadow-card-lg`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="shrink-0 border-b border-border px-4 py-3">
-          <h2 id={titleId} className="font-display text-xl text-text">
+        <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+          <h2 id={titleId} className="text-lg font-semibold text-slate-900">
             {title}
           </h2>
           {description && (
-            <p className="text-text-dim text-sm mt-1 line-clamp-2">{description}</p>
+            <p className="text-slate-500 text-sm mt-1.5 line-clamp-2">{description}</p>
           )}
         </div>
 
         {children && (
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">{children}</div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">{children}</div>
         )}
 
         {footer && (
-          <div className="shrink-0 flex justify-end gap-2 border-t border-border px-4 py-3">
+          <div className="shrink-0 flex justify-end gap-2 border-t border-slate-200 px-5 py-4 bg-slate-50">
             {footer}
           </div>
         )}
@@ -106,14 +118,12 @@ export function ModalButton({
   type?: "button" | "submit";
   form?: string;
 }) {
-  const base =
-    "rounded border px-3 py-1.5 font-mono text-xs transition-colors disabled:opacity-40";
   const styles =
     variant === "primary"
-      ? "border-accent/50 bg-accent/15 text-accent hover:bg-accent/25"
+      ? uiBtn.primary
       : variant === "danger"
-        ? "border-bad/50 bg-bad/10 text-bad hover:bg-bad/20"
-        : "border-border text-text-dim hover:border-text-dim hover:text-text";
+        ? "ui-btn border border-red-200 bg-red-50 text-bad hover:bg-red-100"
+        : uiBtn.default;
 
   return (
     <button
@@ -121,7 +131,7 @@ export function ModalButton({
       form={form}
       onClick={onClick}
       disabled={disabled}
-      className={`${base} ${styles}`}
+      className={styles}
     >
       {children}
     </button>
@@ -136,14 +146,10 @@ export function ModalField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block space-y-1">
-      <span className="font-mono text-[10px] uppercase tracking-wider text-text-faint">
-        {label}
-      </span>
+    <Field label={label} className="gap-2">
       {children}
-    </label>
+    </Field>
   );
 }
 
-export const modalInputClass =
-  "w-full rounded border border-border bg-bg-elev px-3 py-2 text-sm text-text outline-none focus:border-accent focus:ring-1 focus:ring-accent/25";
+export { labelClassName as uiLabel };

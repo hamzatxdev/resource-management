@@ -10,7 +10,7 @@ import {
   tagCanonicalKey,
   TAG_EXAMPLES,
 } from "@/lib/tags";
-import { Modal, ModalButton, ModalField, modalInputClass } from "./Modal";
+import { Modal, ModalButton, ModalField, modalInputClass, modalTextareaClass } from "./Modal";
 import { TagsList } from "./TagChip";
 
 function tagSuggestionScore(tag: string, fragment: string): number {
@@ -175,7 +175,7 @@ export function AddTagModal({
             onChange={(e) => setInput(e.target.value)}
             placeholder={"project:acme\nmay:bench\nallocation:june:cis:4h"}
             rows={4}
-            className={`${modalInputClass} font-mono resize-y min-h-[5rem]`}
+            className={`${modalTextareaClass} font-mono`}
           />
         </ModalField>
 

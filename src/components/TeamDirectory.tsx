@@ -5,6 +5,12 @@ import { AddPersonModal } from "./AddPersonModal";
 import { AddTagModal } from "./AddTagModal";
 import { BulkEditFlagModal } from "./BulkEditFlagModal";
 import { AiPanel } from "./AiPanel";
+import {
+  buildSearchIndexMap,
+  memberMatchesQueryExpression,
+  QUERY_SEARCH_HINT,
+  QUERY_SEARCH_PLACEHOLDER,
+} from "@/lib/querySearch";
 import { ConfirmModal } from "./ConfirmModal";
 import { AiAssessModal, type AssessScope } from "./AiAssessModal";
 import { GenerateProfileModal } from "./GenerateProfileModal";
@@ -23,7 +29,14 @@ import {
   uniqueCanonicalTags,
 } from "@/lib/tags";
 import { parseExpNum } from "@/lib/memberService";
+import { Field, Input, Select } from "@/components/Field";
+import { ToolbarButton, ToolbarLabel } from "@/components/ToolbarButton";
+import { uiBtn } from "@/lib/ui";
 import type { TeamMemberClient } from "@/lib/types";
+
+function ToolbarSep() {
+  return <div className="ui-toolbar-sep" aria-hidden />;
+}
 
 export function TeamDirectory() {
   const [members, setMembers] = useState<TeamMemberClient[]>([]);
@@ -61,6 +74,7 @@ export function TeamDirectory() {
     current?: string;
   } | null>(null);
   const [bulkFlagOpen, setBulkFlagOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -87,8 +101,13 @@ export function TeamDirectory() {
     return uniqueCanonicalTags(raw);
   }, [members]);
 
+  const searchIndex = useMemo(
+    () => buildSearchIndexMap(members),
+    [members]
+  );
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim();
     return members.filter((m) => {
       if (aiFilterIds !== null && !aiFilterIds.has(m.id)) return false;
       if (
@@ -108,31 +127,75 @@ export function TeamDirectory() {
         !tagFilter.every((t) => tagMatchesFilter(m.tags, t))
       )
         return false;
-      if (!q) return true;
-      const blob = [
-        m.id,
-        m.name,
-        m.role,
-        m.email,
-        m.specialization,
-        ...(m.specializations ?? []),
-        m.stackLabel,
-        ...m.stacks,
-        ...m.tags,
-        ...m.skills,
-        m.notes ?? "",
-        m.aiFlags?.summary ?? "",
-        ...(m.aiFlags?.reasons ?? []),
-        m.aiFlags?.severity ?? "",
-        m.probation?.summary ?? "",
-        ...(m.probation?.reasons ?? []),
-        m.probation?.active ? "probation" : "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+      if (q) {
+        const index = searchIndex.get(m.id);
+        if (!index || !memberMatchesQueryExpression(index, q)) return false;
+      }
+      return true;
     });
-  }, [members, search, specFilter, tagFilter, flagFilter, probationFilter, aiFilterIds]);
+  }, [
+    members,
+    search,
+    specFilter,
+    tagFilter,
+    flagFilter,
+    probationFilter,
+    aiFilterIds,
+    searchIndex,
+  ]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Boolean(
+        search.trim() ||
+          specFilter ||
+          tagFilter.length > 0 ||
+          flagFilter ||
+          probationFilter ||
+          aiFilterIds !== null
+      ),
+    [
+      search,
+      specFilter,
+      tagFilter,
+      flagFilter,
+      probationFilter,
+      aiFilterIds,
+    ]
+  );
+
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (search.trim()) parts.push(`search "${search.trim()}"`);
+    if (specFilter) parts.push(`spec ${specFilter}`);
+    if (flagFilter) parts.push(`staffing flag ${flagFilter}`);
+    if (probationFilter) {
+      parts.push(
+        probationFilter === "active" ? "on probation" : "not on probation"
+      );
+    }
+    if (tagFilter.length) parts.push(`tags ${tagFilter.join(" + ")}`);
+    if (aiFilterIds !== null) {
+      parts.push(aiFilterLabel || `AI filter (${aiFilterIds.size})`);
+    }
+    return parts.join("; ");
+  }, [
+    search,
+    specFilter,
+    flagFilter,
+    probationFilter,
+    tagFilter,
+    aiFilterIds,
+    aiFilterLabel,
+  ]);
+
+  /** Rows visible in the table (respects all active filters). */
+  const exportRows = useMemo(() => {
+    if (selectedIds.size > 0) {
+      return filtered.filter((m) => selectedIds.has(m.id));
+    }
+    return filtered;
+  }, [filtered, selectedIds]);
 
   const flagCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -308,16 +371,40 @@ export function TeamDirectory() {
   };
 
   const exportFiltered = async (format: "xlsx" | "json") => {
-    if (!filtered.length) {
-      showToast("No rows to export — adjust filters");
+    if (!exportRows.length) {
+      showToast(
+        selectedIds.size > 0
+          ? "No selected rows to export"
+          : "No rows to export — adjust filters"
+      );
       return;
     }
-    const ids = filtered.map((m) => m.id);
+    const ids = exportRows.map((m) => m.id);
+    const filteredOnly = hasActiveFilters || selectedIds.size > 0;
+    const scopeLabel =
+      selectedIds.size > 0
+        ? `${ids.length} selected`
+        : hasActiveFilters
+          ? `${ids.length} filtered`
+          : ids.length === members.length
+            ? "all"
+            : `${ids.length}`;
+    const fileStem =
+      selectedIds.size > 0
+        ? `team-export-selected-${ids.length}`
+        : hasActiveFilters
+          ? `team-export-filtered-${ids.length}`
+          : `team-export-${ids.length}`;
     try {
       const res = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format, ids }),
+        body: JSON.stringify({
+          format,
+          ids,
+          filteredOnly,
+          filterSummary: filterSummary || undefined,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -331,7 +418,7 @@ export function TeamDirectory() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `team-export-${ids.length}-rows.json`;
+        a.download = `${fileStem}.json`;
         a.click();
         URL.revokeObjectURL(url);
       } else {
@@ -339,15 +426,11 @@ export function TeamDirectory() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `team-export-${ids.length}-rows.xlsx`;
+        a.download = `${fileStem}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
       }
-      const scope =
-        filtered.length === members.length
-          ? "all"
-          : `${filtered.length} filtered`;
-      showToast(`Exported ${scope} row${filtered.length === 1 ? "" : "s"}`);
+      showToast(`Exported ${scopeLabel} row${ids.length === 1 ? "" : "s"}`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Export failed");
     }
@@ -355,28 +438,21 @@ export function TeamDirectory() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <header className="border-b border-border bg-bg-elev/95 backdrop-blur shadow-sm sticky top-0 z-20">
-        <div className="max-w-[1800px] mx-auto px-4 py-4 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="font-mono text-[10px] text-text-faint tracking-widest uppercase mb-1">
-              Techverx · Internal
-            </p>
-            <h1 className="font-display text-3xl md:text-4xl">
-              Team <em className="text-accent not-italic">Directory</em>
+      <header className="ui-header">
+        <div className="ui-header-top">
+          <div className="ui-header-title">
+            <h1 className="text-xl md:text-2xl font-bold text-text leading-tight">
+              Team Directory
             </h1>
-            <p className="text-text-dim text-sm mt-1 max-w-xl">
-              Table-first skills database · MongoDB · AI staffing assistant
+            <p className="text-text-dim text-sm mt-0.5">
+              {filtered.length} of {members.length} people
             </p>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider w-full text-right">
-              Actions
-            </p>
-          <div className="flex flex-wrap gap-2 items-center justify-end font-mono text-xs">
-            <span className="text-text-dim" title="Rows shown after all filters">
-              {filtered.length}/{members.length}
-            </span>
-            <label className="cursor-pointer rounded border border-border px-3 py-1.5 hover:border-accent">
+        </div>
+
+        <div className="ui-toolbar-row">
+          <div className="ui-toolbar">
+            <ToolbarLabel tone="import">
               {importing ? "Importing…" : "Import Excel"}
               <input
                 type="file"
@@ -389,183 +465,161 @@ export function TeamDirectory() {
                   e.target.value = "";
                 }}
               />
-            </label>
-            <button
-              type="button"
-              disabled={!filtered.length}
+            </ToolbarLabel>
+            <ToolbarButton
+              tone="exportExcel"
+              disabled={!exportRows.length}
               onClick={() => exportFiltered("xlsx")}
               title={
-                filtered.length === members.length
-                  ? "Export all rows in the table"
-                  : `Export ${filtered.length} filtered row${filtered.length === 1 ? "" : "s"}`
+                selectedIds.size > 0
+                  ? `Export ${exportRows.length} selected row${exportRows.length === 1 ? "" : "s"}`
+                  : hasActiveFilters
+                    ? `Export ${exportRows.length} filtered row${exportRows.length === 1 ? "" : "s"} (${members.length} total)`
+                    : `Export all ${exportRows.length} rows`
               }
-              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-40"
             >
               Export Excel
-              {filtered.length > 0 &&
-                filtered.length < members.length &&
-                ` (${filtered.length})`}
-            </button>
-            <button
-              type="button"
-              disabled={!filtered.length}
+            </ToolbarButton>
+            <ToolbarButton
+              tone="exportJson"
+              disabled={!exportRows.length}
               onClick={() => exportFiltered("json")}
               title={
-                filtered.length === members.length
-                  ? "Export all rows as JSON"
-                  : `Export ${filtered.length} filtered row${filtered.length === 1 ? "" : "s"} as JSON`
+                selectedIds.size > 0
+                  ? `Export ${exportRows.length} selected rows as JSON`
+                  : hasActiveFilters
+                    ? `Export ${exportRows.length} filtered rows as JSON`
+                    : `Export all rows as JSON`
               }
-              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-40"
             >
               Export JSON
-              {filtered.length > 0 &&
-                filtered.length < members.length &&
-                ` (${filtered.length})`}
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+
+            <ToolbarSep />
+
+            <ToolbarButton
+              tone="assessAll"
               disabled={loading || !!assessProgress}
               onClick={() => openAssess("all")}
-              className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-accent hover:bg-accent/20 disabled:opacity-50"
             >
               AI Assess all
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
+              tone="assessFiltered"
               disabled={loading || !!assessProgress || filtered.length === members.length}
               onClick={() => openAssess("filtered")}
-              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
               title="Assess everyone matching current filters"
             >
               Assess filtered
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
+              tone="assessSelected"
               disabled={loading || !!assessProgress || selectedIds.size === 0}
               onClick={() => openAssess("selected")}
-              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
             >
               Assess selected ({selectedIds.size})
-            </button>
-            <button
-              type="button"
+            </ToolbarButton>
+            <ToolbarButton
+              tone="aiProfile"
+              onClick={() => setGenerateProfileOpen(true)}
+            >
+              AI Profile
+            </ToolbarButton>
+
+            <ToolbarSep />
+
+            <ToolbarButton
+              tone="setFlag"
               disabled={loading || selectedIds.size === 0}
               onClick={() => setBulkFlagOpen(true)}
               title="Apply the same flag severity, summary, and reasons to all selected rows"
-              className="rounded border border-border px-3 py-1.5 hover:border-accent disabled:opacity-50"
             >
               Set flag ({selectedIds.size})
-            </button>
+            </ToolbarButton>
             {selectedIds.size > 0 && (
-              <button
-                type="button"
-                onClick={clearSelection}
-                className="rounded border border-border px-3 py-1.5 text-text-dim hover:border-accent text-xs"
-              >
+              <ToolbarButton tone="clear" onClick={clearSelection}>
                 Clear selection ({selectedIds.size})
-              </button>
+              </ToolbarButton>
             )}
-            <button
-              type="button"
-              onClick={() => setGenerateProfileOpen(true)}
-              className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-accent"
-            >
-              AI Profile
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddPersonOpen(true)}
-              className="rounded border border-border px-3 py-1.5 hover:border-accent"
-            >
-              + Person
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="rounded border border-border px-3 py-1.5"
-            >
+
+            <ToolbarSep />
+
+            <ToolbarButton tone="addPerson" onClick={() => setAddPersonOpen(true)}>
+              Add person
+            </ToolbarButton>
+            <ToolbarButton tone="refresh" onClick={() => void load()}>
               Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleLogout()}
-              className="rounded border border-border px-3 py-1.5 text-text-dim hover:border-bad hover:text-bad"
-            >
+            </ToolbarButton>
+            <ToolbarButton tone="logout" onClick={() => void handleLogout()}>
               Log out
-            </button>
-          </div>
+            </ToolbarButton>
           </div>
         </div>
 
-        <div className="max-w-[1800px] mx-auto px-4 pt-1 pb-1">
-          <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider">
-            Filters
-          </p>
-        </div>
-        <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-2 items-center">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, role, skills, tags, allocations…"
-            className="flex-1 min-w-[200px] rounded border border-border bg-bg-elev px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-          />
-          <select
-            value={specFilter}
-            onChange={(e) => setSpecFilter(e.target.value)}
-            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm"
-          >
-            <option value="">All specializations</option>
-            {specs.map(([s, n]) => (
-              <option key={s} value={s}>
-                {s} ({n})
-              </option>
-            ))}
-          </select>
-          <label className="flex flex-col gap-0.5 shrink-0">
-            <span className="font-mono text-[9px] uppercase tracking-wider text-text-faint px-0.5">
-              Staffing flag
-            </span>
-          <select
-            value={flagFilter}
-            onChange={(e) => setFlagFilter(e.target.value)}
-            title="Filter by staffing flag (Info, Watch, Action, etc.)"
-            className="rounded border border-border bg-bg-elev px-2 py-2 text-sm min-w-[148px]"
-          >
+        <div className="ui-header-filters">
+          <Field label="Search" className="ui-header-field ui-header-field-search">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={QUERY_SEARCH_PLACEHOLDER}
+              title={QUERY_SEARCH_HINT}
+            />
+          </Field>
+          <Field label="Spec" className="ui-header-field">
+            <Select
+              value={specFilter}
+              onChange={(e) => setSpecFilter(e.target.value)}
+            >
+              <option value="">All</option>
+              {specs.map(([s, n]) => (
+                <option key={s} value={s}>
+                  {s} ({n})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Flag" className="ui-header-field">
+            <Select
+              value={flagFilter}
+              onChange={(e) => setFlagFilter(e.target.value)}
+              title="Filter by staffing flag (Info, Watch, Action, etc.)"
+            >
             <option value="">All</option>
             <option value="staffing">
-              Any staffing flag ({flagCounts.staffing})
+              Staffing ({flagCounts.staffing})
             </option>
             <option value="info">Info ({flagCounts.info})</option>
             <option value="watch">Watch ({flagCounts.watch})</option>
             <option value="action">Action ({flagCounts.action})</option>
             <option value="replacement">
-              Replacement ({flagCounts.replacement})
+              Replace ({flagCounts.replacement})
             </option>
-            <option value="ok">OK / reviewed ({flagCounts.ok})</option>
-            <option value="none">No staffing flag ({flagCounts.none})</option>
-          </select>
-          </label>
-          <label className="flex flex-col gap-0.5 shrink-0">
-            <span className="font-mono text-[9px] uppercase tracking-wider text-orange-700 px-0.5">
-              Probation
-            </span>
-          <select
-            value={probationFilter}
-            onChange={(e) => setProbationFilter(e.target.value)}
-            title="Filter by HR probation status (separate from staffing flags)"
-            className="rounded border border-orange-200 bg-orange-50/50 px-2 py-2 text-sm min-w-[148px]"
-          >
+            <option value="ok">OK ({flagCounts.ok})</option>
+            <option value="none">None ({flagCounts.none})</option>
+            </Select>
+          </Field>
+          <Field label="Probation" className="ui-header-field">
+            <Select
+              value={probationFilter}
+              onChange={(e) => setProbationFilter(e.target.value)}
+              title="Filter by HR probation status"
+              className={
+                probationFilter
+                  ? "border-amber-300 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/15"
+                  : undefined
+              }
+            >
             <option value="">All</option>
             <option value="active">
-              On probation ({flagCounts.probation})
+              Active ({flagCounts.probation})
             </option>
             <option value="inactive">
-              Not on probation ({members.length - flagCounts.probation})
+              Clear ({members.length - flagCounts.probation})
             </option>
-          </select>
-          </label>
+            </Select>
+          </Field>
           {aiFilterIds !== null && (
-            <span className="font-mono text-[10px] rounded-full border border-accent/50 bg-accent/10 text-accent px-2 py-1">
+            <span className="ui-badge-ai shrink-0 self-end mb-0.5">
               AI: {aiFilterLabel || `${aiFilterIds.size} shown`}
             </span>
           )}
@@ -586,32 +640,33 @@ export function TeamDirectory() {
                 setAiFilterIds(null);
                 setAiFilterLabel("");
               }}
-              className="text-text-dim text-xs hover:text-accent"
+              className={`${uiBtn.ghost} text-xs shrink-0 self-end mb-0.5 h-8`}
             >
-              Reset filters
+              Reset
+            </button>
+          )}
+          {allTags.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTagsOpen((v) => !v)}
+              className={`${uiBtn.ghost} text-xs shrink-0 self-end mb-0.5 h-8`}
+            >
+              Tags {tagsOpen ? "▲" : "▼"} ({allTags.length})
+              {tagFilter.length > 0 ? ` · ${tagFilter.length} on` : ""}
             </button>
           )}
         </div>
 
-        {allTags.length > 0 && (
-          <div className="max-w-[1800px] mx-auto px-4 pb-1">
-            <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider">
-              Tag filters <span className="normal-case text-text-dim">(click to toggle, AND together)</span>
-            </p>
-          </div>
-        )}
-        {allTags.length > 0 && (
-          <div className="max-w-[1800px] mx-auto px-4 pb-3 flex flex-wrap gap-1">
+        {allTags.length > 0 && tagsOpen && (
+          <div className="ui-header-tags">
             {allTags.map((tag) => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => toggleTag(tag)}
-                className={`font-mono text-[10px] rounded-full px-2 py-0.5 border ${
-                  tagFilter.includes(tag)
-                    ? "border-accent bg-accent/15 text-accent"
-                    : "border-border text-text-dim"
-                }`}
+                className={
+                  tagFilter.includes(tag) ? "ui-chip-active" : "ui-chip-inactive"
+                }
               >
                 {parseTag(tag).label}
               </button>
@@ -621,9 +676,9 @@ export function TeamDirectory() {
       </header>
 
       {(toast || assessProgress) && (
-        <div className="fixed bottom-4 right-4 z-50 rounded border border-border bg-bg-card px-4 py-2 text-sm shadow-card-lg text-text max-w-sm">
+        <div className="ui-toast">
           {assessProgress && (
-            <p className="font-mono text-xs text-text-dim mb-1">
+            <p className="text-xs text-text-dim mb-1 font-medium">
               AI assessing {assessProgress.done}/{assessProgress.total}
               {assessProgress.current ? ` · ${assessProgress.current}` : ""}
             </p>
@@ -632,29 +687,29 @@ export function TeamDirectory() {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0 max-w-[1800px] mx-auto w-full px-4 py-4 gap-4">
+      <div className="flex-1 flex min-h-0 w-full px-3 py-2 gap-2">
         <main className="flex-1 min-w-0 min-h-0 flex flex-col">
           {error && (
-            <div className="rounded border border-bad/40 bg-red-50 p-4 mb-4 text-sm">
-              <p className="text-bad font-medium">{error}</p>
-              <p className="text-text-dim mt-2 text-xs">
+            <div className="ui-alert-error mb-4">
+              <p className="text-bad font-semibold">{error}</p>
+              <p className="text-text-dim mt-2 text-xs leading-relaxed">
                 Ensure MongoDB is running at your MONGODB_URI. Start with:{" "}
-                <code className="text-accent">brew services start mongodb-community</code>{" "}
+                <code className="ui-kbd">brew services start mongodb-community</code>{" "}
                 or use MongoDB Atlas.
               </p>
             </div>
           )}
 
           {loading ? (
-            <p className="text-text-dim font-mono text-sm">Loading team…</p>
+            <p className="text-text-dim text-sm">Loading team…</p>
           ) : filtered.length === 0 ? (
-            <p className="p-8 text-center text-text-dim text-sm rounded-lg border border-border">
+            <p className="ui-empty">
               {aiFilterIds !== null
                 ? "No one matches your AI search. Try a broader question, clear the AI filter, or run Reindex in the AI panel."
                 : (
                   <>
                     No members match filters. Import Excel or run{" "}
-                    <code className="text-accent">npm run seed</code>.
+                    <code className="ui-kbd">npm run seed</code>.
                   </>
                 )}
             </p>

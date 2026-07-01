@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { EditableTextarea } from "./EditableTextarea";
+import { TextareaSm } from "@/components/Field";
+import { uiBtn } from "@/lib/ui";
 import { Tooltip } from "./Tooltip";
-import type { EscalationEntry, TeamMemberClient } from "@/lib/types";
+import type { TeamMemberClient } from "@/lib/types";
 
 export function EscalationCell({
   member,
@@ -20,26 +21,23 @@ export function EscalationCell({
   const latest = member.escalations?.[member.escalations.length - 1];
 
   return (
-    <div className="space-y-1 min-w-0">
+    <div className="space-y-2 min-w-0">
       {latest && (
         <Tooltip
           content={`${latest.text}${latest.assessment ? `\n\nAI: ${latest.assessment}` : ""}`}
           force
           maxWidth={400}
         >
-          <p className="text-[9px] text-text-dim line-clamp-2 font-mono">
-            {latest.text}
-          </p>
+          <p className="text-sm text-slate-600 line-clamp-2">{latest.text}</p>
         </Tooltip>
       )}
-      <textarea
+      <TextareaSm
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Add escalation…"
-        rows={2}
-        className="w-full rounded border border-border bg-bg-elev px-1.5 py-1 font-mono text-[10px] outline-none focus:border-accent resize-y"
+        rows={3}
       />
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={!draft.trim() || busy}
@@ -47,7 +45,7 @@ export function EscalationCell({
             await onAddEscalation(draft.trim());
             setDraft("");
           }}
-          className="rounded border border-border px-1.5 py-0.5 text-[9px] hover:border-accent disabled:opacity-40"
+          className={`${uiBtn.default} text-sm py-1.5 px-3 h-auto`}
         >
           Save
         </button>
@@ -55,13 +53,13 @@ export function EscalationCell({
           type="button"
           disabled={busy || (!draft.trim() && !latest?.text)}
           onClick={() => onReassess(draft.trim() || latest?.text || "")}
-          className="rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent hover:bg-accent/20 disabled:opacity-40"
+          className={`${uiBtn.soft} text-sm py-1.5 px-3 h-auto`}
         >
           {busy ? "AI…" : "Reassess"}
         </button>
       </div>
       {member.escalations && member.escalations.length > 1 && (
-        <span className="text-[9px] text-text-faint">
+        <span className="text-xs text-slate-400">
           {member.escalations.length} escalations
         </span>
       )}

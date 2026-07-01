@@ -34,9 +34,9 @@ export function TagChip({
       force
     >
       <span
-        className={`inline-flex h-[18px] max-w-full items-center gap-0.5 rounded border font-mono text-[9px] leading-none ${style}`}
+        className={`inline-flex h-5 max-w-full items-center gap-0.5 rounded-full border text-[10px] font-medium leading-none ${style}`}
       >
-        <span className="px-1 truncate leading-none">
+        <span className="px-2 truncate leading-none">
           {p.type === "freeform" ? p.raw : p.label}
         </span>
         {onRemove && (

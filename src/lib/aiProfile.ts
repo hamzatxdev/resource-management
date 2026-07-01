@@ -28,6 +28,7 @@ export function buildProfilePayloadForAI(member: TeamMemberClient) {
       .map((e) => `[${e.createdAt}] ${e.text}${e.assessment ? ` → ${e.assessment}` : ""}`)
       .join("\n"),
     currentFlags: member.aiFlags,
+    probation: member.probation,
   };
 }
 
